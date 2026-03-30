@@ -61,12 +61,7 @@
       if (result && result.ok) {
         statusDot.className = "dot dot-ok";
         statusText.textContent = `Logged in as ${result.username}`;
-        sessionInfo.style.display = "block";
-        sessionInfo.innerHTML = `
-          <strong>User:</strong> ${result.username}<br>
-          <strong>Database:</strong> ${result.db}<br>
-          <strong>Server:</strong> ${result.serverVersion}
-        `;
+        sessionInfo.style.display = "none";
       } else {
         statusDot.className = "dot dot-err";
         statusText.textContent = "Not logged in";
