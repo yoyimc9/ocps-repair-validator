@@ -1,0 +1,91 @@
+name: Release Extension
+
+# Trigger: push a version tag, e.g. git tag v2.1.0 && git push origin v2.1.0
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write   # needed to create releases and push back docs/updates.xml
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+        with:
+          # Use a PAT if the default token can't push back to main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Read version from extension/manifest.json ──────────────────
+      - name: Read version
+        id: meta
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('extension/manifest.json'))['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── 3. Install Chrome (for packing) ───────────────────────────────
+      - uses: browser-actions/setup-chrome@v1
+
+      # ── 4. Restore signing key (keeps extension ID stable) ─────────────
+      #       Add your base64-encoded .pem as a GitHub Secret "EXTENSION_PEM"
+      #       Run setup.ps1 locally once to generate it.
+      - name: Restore signing key
+        run: echo "${{ secrets.EXTENSION_PEM }}" | base64 -d > extension.pem
+
+      # ── 5. Pack extension → extension.crx ─────────────────────────────
+      - name: Pack extension
+        run: |
+          google-chrome \
+            --pack-extension=./extension \
+            --pack-extension-key=extension.pem \
+            --no-sandbox 2>/dev/null \
+          || google-chrome-stable \
+            --pack-extension=./extension \
+            --pack-extension-key=extension.pem \
+            --no-sandbox
+          ls -la extension.crx
+
+      # ── 6. Update docs/updates.xml with new version + download URL ─────
+      - name: Update updates.xml
+        run: |
+          REPO="${{ github.repository }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          EXT_ID="${{ secrets.EXTENSION_ID }}"
+          CODEBASE="https://github.com/$REPO/releases/latest/download/extension.crx"
+
+          # Patch each attribute in-place using sed (avoids xmlstarlet dependency)
+          sed -i "s|appid='[^']*'|appid='$EXT_ID'|g" docs/updates.xml
+          sed -i "s|version='[^']*'|version='$VERSION'|g" docs/updates.xml
+          sed -i "s|codebase='[^']*'|codebase='$CODEBASE'|g" docs/updates.xml
+
+          echo "--- updated docs/updates.xml ---"
+          cat docs/updates.xml
+
+      # ── 7. Commit and push updated docs/updates.xml back to main ───────
+      - name: Commit updates.xml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/updates.xml
+          git diff --cached --quiet \
+            || git commit -m "chore: update extension manifest to v${{ steps.meta.outputs.version }}"
+          git push origin HEAD:main
+
+      # ── 8. Create GitHub Release and upload extension.crx ──────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "OCPS Repair Validator v${{ steps.meta.outputs.version }}"
+          body: |
+            ## OCPS Repair Validator v${{ steps.meta.outputs.version }}
+
+            ### For new installs
+            Download `extension.crx` and drag it onto `chrome://extensions` (Developer mode on).
+
+            ### Existing installs
+            Update automatically — browser checks `updates.xml` periodically (up to 5 hours).
+          files: extension.crx

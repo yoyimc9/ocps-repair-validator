@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "OCPS Repair Validator",
+  "version": "2.0.0",
+  "update_url": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/updates.xml",
+  "description": "Standalone real-time repair validation on Odoo repair pages. Validates directly via JSON-RPC — no dashboard needed.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "*://*.odoo.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.odoo.com/odoo/repairs/*"
+      ],
+      "js": ["odoo-rpc.js", "validator.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

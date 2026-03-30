@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Chrome/Edge auto-update manifest for OCPS Repair Validator.
+     This file is served via GitHub Pages and is read by the browser
+     to check if a newer version of the extension is available.
+
+     SETUP: Replace YOUR_EXTENSION_ID with the actual extension ID from chrome://extensions.
+            Replace YOUR_GITHUB_USERNAME and YOUR_REPO_NAME with your GitHub details.
+            The GitHub Actions workflow updates version and codebase automatically on each release.
+-->
+<gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
+  <app appid='YOUR_EXTENSION_ID'>
+    <updatecheck
+      version='2.0.0'
+      codebase='https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/releases/latest/download/extension.crx' />
+  </app>
+</gupdate>
