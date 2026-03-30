@@ -1,7 +1,8 @@
 ﻿/* OCPS Repair Validator - Content Script Styles */
 
 /* -- Announcement Modal: Windows 98 Style ------------------------------ */
-#ocps-announce-modal {
+#ocps-announce-modal,
+#ocps-blocked-modal {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.45);

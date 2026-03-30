@@ -262,6 +262,11 @@
     // Hide Create Quotation if coverage is CHS
     const isChs = (data.coverage_type || "").toLowerCase().includes("chs");
     setCreateQuotationHidden(isChs);
+
+    // Blocked serial check
+    if (data.lot_name && checkSerialBlocked(data.lot_name)) {
+      showBlockedSerialModal(data.lot_name);
+    }
   }
 
   function renderError(repairId, message) {
@@ -342,10 +347,49 @@
     }
   });
 
-  /* ── Announcements ────────────────────────────────────────────── */
+  /* ── Announcements & Blocked Serials ────────────────────────── */
 
-  const ANNOUNCE_URL = "https://raw.githubusercontent.com/yoyimc9/ocps-repair-validator/main/docs/announcements.json";
-  const ANNOUNCE_INTERVAL = 60000; // check every 60 seconds
+  const ANNOUNCE_URL  = "https://raw.githubusercontent.com/yoyimc9/ocps-repair-validator/main/docs/announcements.json";
+  const BLOCKED_URL   = "https://raw.githubusercontent.com/yoyimc9/ocps-repair-validator/main/docs/blocked-serials.json";
+  const ANNOUNCE_INTERVAL = 60000;
+
+  let cachedBlockedSerials = [];
+
+  async function loadBlockedSerials() {
+    try {
+      const resp = await fetch(BLOCKED_URL + "?_=" + Date.now());
+      if (!resp.ok) return;
+      const data = await resp.json();
+      cachedBlockedSerials = (data.blocked || []).map(b => (b.serial || "").trim().toLowerCase());
+    } catch { /* silent */ }
+  }
+
+  function checkSerialBlocked(serial) {
+    if (!serial) return false;
+    return cachedBlockedSerials.includes(serial.trim().toLowerCase());
+  }
+
+  function showBlockedSerialModal(serial) {
+    const existing = document.getElementById("ocps-blocked-modal");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "ocps-blocked-modal";
+    overlay.innerHTML = `
+      <div class="ocps-modal-box ocps-modal-urgent">
+        <div class="ocps-modal-titlebar">
+          <span class="ocps-modal-titlebar-text">&#9888;&#65039; Device Flagged</span>
+        </div>
+        <div class="ocps-modal-body">
+          <span class="ocps-modal-icon">&#128721;</span>
+          <span>Serial <strong>${esc(serial)}</strong> has been flagged.<br><br>Redirect this device to leadership immediately.</span>
+        </div>
+        <div class="ocps-modal-footer">
+          <button class="ocps-modal-ok">I Understand</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".ocps-modal-ok").onclick = () => overlay.remove();
+  }
 
   function getSeenIds() {
     return new Promise(resolve => {
@@ -436,6 +480,9 @@
     // Announcements: check on load and every minute
     checkAnnouncements();
     setInterval(checkAnnouncements, ANNOUNCE_INTERVAL);
+    // Blocked serials: load on start and refresh every minute
+    loadBlockedSerials();
+    setInterval(loadBlockedSerials, ANNOUNCE_INTERVAL);
   }
 
   if (document.readyState === "complete") {

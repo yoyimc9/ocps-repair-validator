@@ -191,15 +191,41 @@
     <div id="announce-list"><div id="empty-state">Connect your token to load announcements.</div></div>
   </div>
 
+  <!-- Blocked Serials -->
+  <div style="margin-top:32px;">
+    <h2 style="font-size:14px;font-weight:700;margin-bottom:14px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">🔒 Blocked Serials</h2>
+
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:20px;margin-bottom:16px;">
+      <div class="field">
+        <label>Serial Numbers <span style="font-weight:400;text-transform:none;letter-spacing:0;">(one per line, or comma/semicolon separated)</span></label>
+        <textarea id="serial-input" style="height:100px;resize:vertical;" placeholder="SN12345&#10;SN67890&#10;ABC123"></textarea>
+      </div>
+      <div class="field">
+        <label>Note (optional)</label>
+        <input type="text" id="serial-note" placeholder="Reason for blocking…">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:14px;">
+        <button onclick="addBlockedSerials()" style="background:#ef4444;" onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">🔒 Block Serials</button>
+        <span id="block-status" style="font-size:12px;"></span>
+      </div>
+    </div>
+
+    <div id="blocked-list"><div style="color:#475569;font-size:13px;padding:20px 0;text-align:center;">Connect your token to load blocked serials.</div></div>
+  </div>
+
 </div>
 
 <script>
   const REPO  = "yoyimc9/ocps-repair-validator";
   const FILE  = "docs/announcements.json";
   const API   = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
+  const BLOCKED_FILE = "docs/blocked-serials.json";
+  const BLOCKED_API  = `https://api.github.com/repos/${REPO}/contents/${BLOCKED_FILE}`;
 
   let currentSha = null;
   let announcements = [];
+  let blockedSha = null;
+  let blockedList = [];
 
   // ── Token management ──────────────────────────────────────────
   function getToken() { return sessionStorage.getItem("ocps_pat") || ""; }
@@ -210,6 +236,7 @@
     sessionStorage.setItem("ocps_pat", t);
     document.getElementById("pat-input").value = "";
     loadAnnouncements();
+    loadBlocked();
   }
 
   function clearToken() {
@@ -347,6 +374,99 @@
     return d.innerHTML;
   }
 
+  // ── Blocked Serials ──────────────────────────────────────────
+  async function loadBlocked() {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const r = await fetch(BLOCKED_API, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } });
+      if (r.status === 404) { blockedSha = null; blockedList = []; renderBlockedList(); return; }
+      if (!r.ok) return;
+      const data = await r.json();
+      blockedSha = data.sha;
+      const decoded = JSON.parse(atob(data.content.replace(/\n/g, "")));
+      blockedList = decoded.blocked || [];
+      renderBlockedList();
+    } catch (e) { console.error("loadBlocked:", e); }
+  }
+
+  async function addBlockedSerials() {
+    const token = getToken();
+    if (!token) { setBlockStatus("Connect a GitHub token first.", true); return; }
+    const rawInput = document.getElementById("serial-input").value;
+    const note = document.getElementById("serial-note").value.trim();
+    const serials = rawInput.split(/[\n,;]+/).map(s => s.trim()).filter(s => s.length > 0);
+    if (!serials.length) { setBlockStatus("Enter at least one serial number.", true); return; }
+    setBlockStatus("Saving\u2026", false);
+    const now = new Date().toISOString();
+    const existing = blockedList.map(b => b.serial.toLowerCase());
+    const toAdd = serials
+      .filter(s => !existing.includes(s.toLowerCase()))
+      .map(serial => ({ serial, note: note || null, created: now }));
+    if (!toAdd.length) { setBlockStatus("All serials are already blocked.", true); return; }
+    const updated = { blocked: [...toAdd, ...blockedList] };
+    const ok = await saveBlockedToGitHub(updated, `block: add ${toAdd.length} serial(s)`);
+    if (ok) {
+      document.getElementById("serial-input").value = "";
+      document.getElementById("serial-note").value = "";
+      setBlockStatus(`\u2705 ${toAdd.length} serial(s) blocked.`, false);
+      setTimeout(() => setBlockStatus("", false), 5000);
+    } else {
+      setBlockStatus("\u274c Failed to save. Check token permissions.", true);
+    }
+  }
+
+  async function unblockSerial(serial) {
+    const token = getToken();
+    if (!token) return;
+    const updated = { blocked: blockedList.filter(b => b.serial !== serial) };
+    const ok = await saveBlockedToGitHub(updated, `block: unblock ${serial}`);
+    if (ok) setBlockStatus(`Unblocked: ${serial}`, false);
+  }
+
+  async function saveBlockedToGitHub(data, message) {
+    const token = getToken();
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+    try {
+      const body = { message, content };
+      if (blockedSha) body.sha = blockedSha;
+      const r = await fetch(BLOCKED_API, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/vnd.github+json" },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) return false;
+      const result = await r.json();
+      blockedSha = result.content.sha;
+      blockedList = data.blocked;
+      renderBlockedList();
+      return true;
+    } catch { return false; }
+  }
+
+  function setBlockStatus(msg, isError) {
+    const el = document.getElementById("block-status");
+    el.textContent = msg;
+    el.style.color = isError ? "#f87171" : "#4ade80";
+  }
+
+  function renderBlockedList() {
+    const el = document.getElementById("blocked-list");
+    if (!blockedList.length) {
+      el.innerHTML = `<div style="color:#475569;font-size:13px;padding:20px 0;text-align:center;">No blocked serials.</div>`;
+      return;
+    }
+    el.innerHTML = blockedList.map(b => `
+      <div style="background:#1e293b;border:1px solid #334155;border-left:3px solid #ef4444;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:14px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;color:#fca5a5;font-family:monospace;">${esc(b.serial)}</div>
+          ${b.note ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">${esc(b.note)}</div>` : ""}
+          <div style="font-size:11px;color:#475569;margin-top:4px;">${new Date(b.created).toLocaleString()}</div>
+        </div>
+        <button class="danger" onclick="unblockSerial('${esc(b.serial).replace(/'/g, "\\'")}')">Unblock</button>
+      </div>`).join("");
+  }
+
   // ── Init ──────────────────────────────────────────────────────
   document.getElementById("msg-priority").addEventListener("change", function () {
     const btn = document.getElementById("send-btn");
@@ -359,7 +479,7 @@
   });
 
   // Auto-connect if token is saved in session
-  if (getToken()) loadAnnouncements();
+  if (getToken()) { loadAnnouncements(); loadBlocked(); }
 </script>
 </body>
 </html>
