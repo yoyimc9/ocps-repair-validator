@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCPS Validator — Admin Panel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .container { max-width: 720px; margin: 0 auto; }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #f1f5f9;
+    }
+    .subtitle { font-size: 13px; color: #64748b; margin-bottom: 28px; }
+
+    /* Token section */
+    #token-section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    #token-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
+
+    .token-row { display: flex; gap: 8px; }
+
+    input[type="password"], input[type="text"], textarea, select {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e2e8f0;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      width: 100%;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: #3b82f6; }
+
+    button {
+      background: #3b82f6;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s;
+      font-family: inherit;
+    }
+    button:hover { background: #2563eb; }
+    button.secondary { background: #334155; color: #94a3b8; }
+    button.secondary:hover { background: #475569; color: #e2e8f0; }
+    button.danger { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+    button.danger:hover { background: rgba(239,68,68,.25); }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #64748b;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .status-dot.connected { background: #22c55e; }
+    #token-status { font-size: 12px; color: #64748b; margin-top: 8px; }
+
+    /* Composer */
+    #composer {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    #composer h2 { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
+
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+    textarea#msg-body { height: 100px; resize: vertical; }
+
+    .composer-footer { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+    .composer-footer .send-btn { background: #22c55e; flex-shrink: 0; }
+    .composer-footer .send-btn:hover { background: #16a34a; }
+    .composer-footer .send-btn.urgent { background: #ef4444; }
+    .composer-footer .send-btn.urgent:hover { background: #dc2626; }
+    #send-status { font-size: 12px; color: #64748b; }
+
+    /* Announcements list */
+    #list-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
+
+    .announce-item {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .announce-item.urgent { border-left: 3px solid #ef4444; }
+    .announce-item.inactive { opacity: 0.4; }
+    .announce-meta { flex: 1; }
+    .announce-title { font-size: 13px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+    .announce-msg { font-size: 13px; color: #cbd5e1; white-space: pre-wrap; line-height: 1.5; }
+    .announce-time { font-size: 11px; color: #475569; margin-top: 6px; }
+    .badge-urgent { background: rgba(239,68,68,.2); color: #f87171; border: 1px solid rgba(239,68,68,.3); font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 20px; text-transform: uppercase; }
+    .announce-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    #empty-state { color: #475569; font-size: 13px; padding: 20px 0; text-align: center; }
+
+    .alert {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .alert-info { background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.3); color: #93c5fd; }
+    .alert-warn { background: rgba(245,158,11,.15); border: 1px solid rgba(245,158,11,.3); color: #fbbf24; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>📢 OCPS Validator — Admin Panel</h1>
+  <p class="subtitle">Broadcast announcements to all technicians. Messages appear as a popup that requires OK to dismiss.</p>
+
+  <div class="alert alert-info">
+    🔑 Requires a GitHub Personal Access Token with <strong>repo</strong> scope.
+    <a href="https://github.com/settings/tokens/new?scopes=repo&description=OCPS+Admin" target="_blank" style="color:#60a5fa">Generate one here</a>.
+    Token is stored only in your browser session.
+  </div>
+
+  <!-- Token -->
+  <div id="token-section">
+    <h2>GitHub Token</h2>
+    <div class="token-row">
+      <input type="password" id="pat-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      <button onclick="connectToken()">Connect</button>
+      <button class="secondary" onclick="clearToken()">Clear</button>
+    </div>
+    <div id="token-status"><span class="status-dot" id="status-dot"></span><span id="status-text">Not connected</span></div>
+  </div>
+
+  <!-- Composer -->
+  <div id="composer">
+    <h2>New Announcement</h2>
+    <div class="field">
+      <label>Title (optional)</label>
+      <input type="text" id="msg-title" placeholder="e.g. End of shift reminder">
+    </div>
+    <div class="field">
+      <label>Message</label>
+      <textarea id="msg-body" placeholder="Type your announcement here…"></textarea>
+    </div>
+    <div class="field">
+      <label>Priority</label>
+      <select id="msg-priority">
+        <option value="normal">📢 Normal</option>
+        <option value="urgent">🚨 Urgent</option>
+      </select>
+    </div>
+    <div class="composer-footer">
+      <button class="send-btn" id="send-btn" onclick="sendAnnouncement()">Broadcast</button>
+      <span id="send-status"></span>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div id="list-section">
+    <h2>Active Announcements</h2>
+    <div id="announce-list"><div id="empty-state">Connect your token to load announcements.</div></div>
+  </div>
+
+</div>
+
+<script>
+  const REPO  = "yoyimc9/ocps-repair-validator";
+  const FILE  = "docs/announcements.json";
+  const API   = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
+
+  let currentSha = null;
+  let announcements = [];
+
+  // ── Token management ──────────────────────────────────────────
+  function getToken() { return sessionStorage.getItem("ocps_pat") || ""; }
+
+  function connectToken() {
+    const t = document.getElementById("pat-input").value.trim();
+    if (!t) return;
+    sessionStorage.setItem("ocps_pat", t);
+    document.getElementById("pat-input").value = "";
+    loadAnnouncements();
+  }
+
+  function clearToken() {
+    sessionStorage.removeItem("ocps_pat");
+    setStatus(false, "Not connected");
+    renderList();
+  }
+
+  function setStatus(ok, msg) {
+    document.getElementById("status-dot").className = "status-dot" + (ok ? " connected" : "");
+    document.getElementById("status-text").textContent = msg;
+  }
+
+  // ── Load from GitHub ──────────────────────────────────────────
+  async function loadAnnouncements() {
+    const token = getToken();
+    if (!token) { setStatus(false, "No token — enter one above"); return; }
+    try {
+      const r = await fetch(API, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } });
+      if (r.status === 401) { setStatus(false, "Invalid token"); return; }
+      if (!r.ok) throw new Error(r.statusText);
+      const data = await r.json();
+      currentSha = data.sha;
+      const decoded = JSON.parse(atob(data.content.replace(/\n/g, "")));
+      announcements = decoded.announcements || [];
+      setStatus(true, `Connected · ${announcements.filter(a => a.active !== false).length} active`);
+      renderList();
+    } catch (e) {
+      setStatus(false, "Error: " + e.message);
+    }
+  }
+
+  // ── Send announcement ─────────────────────────────────────────
+  async function sendAnnouncement() {
+    const token = getToken();
+    if (!token) { setSendStatus("Connect a GitHub token first.", true); return; }
+
+    const title    = document.getElementById("msg-title").value.trim();
+    const message  = document.getElementById("msg-body").value.trim();
+    const priority = document.getElementById("msg-priority").value;
+
+    if (!message) { setSendStatus("Message is required.", true); return; }
+
+    const btn = document.getElementById("send-btn");
+    btn.textContent = "Sending…";
+    btn.disabled = true;
+
+    const newEntry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      title: title || null,
+      message,
+      priority,
+      active: true,
+      created: new Date().toISOString()
+    };
+
+    const updated = { announcements: [newEntry, ...announcements] };
+    const ok = await saveToGitHub(updated, `announcement: add ${priority} from admin`);
+
+    btn.disabled = false;
+    btn.textContent = "Broadcast";
+
+    if (ok) {
+      document.getElementById("msg-title").value = "";
+      document.getElementById("msg-body").value = "";
+      setSendStatus("✅ Sent! Technicians will see it within ~30 seconds.", false);
+      setTimeout(() => setSendStatus("", false), 5000);
+    } else {
+      setSendStatus("❌ Failed to save. Check your token permissions.", true);
+    }
+  }
+
+  // ── Deactivate ────────────────────────────────────────────────
+  async function deactivate(id) {
+    const token = getToken();
+    if (!token) return;
+    const updated = { announcements: announcements.map(a => a.id === id ? { ...a, active: false } : a) };
+    const ok = await saveToGitHub(updated, "announcement: deactivate " + id);
+    if (ok) setSendStatus("Announcement deactivated.", false);
+  }
+
+  // ── Save to GitHub ────────────────────────────────────────────
+  async function saveToGitHub(data, message) {
+    const token = getToken();
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+    try {
+      const r = await fetch(API, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/vnd.github+json" },
+        body: JSON.stringify({ message, content, sha: currentSha })
+      });
+      if (!r.ok) return false;
+      const result = await r.json();
+      currentSha = result.content.sha;
+      announcements = data.announcements;
+      setStatus(true, `Connected · ${announcements.filter(a => a.active !== false).length} active`);
+      renderList();
+      return true;
+    } catch { return false; }
+  }
+
+  function setSendStatus(msg, isError) {
+    const el = document.getElementById("send-status");
+    el.textContent = msg;
+    el.style.color = isError ? "#f87171" : "#4ade80";
+  }
+
+  // ── Render list ───────────────────────────────────────────────
+  function renderList() {
+    const el = document.getElementById("announce-list");
+    const active = announcements.filter(a => a.active !== false);
+    if (!active.length) {
+      el.innerHTML = `<div id="empty-state">No active announcements.</div>`;
+      return;
+    }
+    el.innerHTML = active.map(a => `
+      <div class="announce-item ${a.priority === 'urgent' ? 'urgent' : ''}">
+        <div class="announce-meta">
+          <div class="announce-title">
+            ${a.priority === 'urgent' ? '<span class="badge-urgent">Urgent</span> ' : ''}
+            ${a.title ? esc(a.title) : '(no title)'}
+          </div>
+          <div class="announce-msg">${esc(a.message)}</div>
+          <div class="announce-time">${new Date(a.created).toLocaleString()}</div>
+        </div>
+        <div class="announce-actions">
+          <button class="danger" onclick="deactivate('${a.id}')">Deactivate</button>
+        </div>
+      </div>`).join("");
+  }
+
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+  document.getElementById("msg-priority").addEventListener("change", function () {
+    const btn = document.getElementById("send-btn");
+    btn.className = "send-btn" + (this.value === "urgent" ? " urgent" : "");
+    btn.textContent = this.value === "urgent" ? "🚨 Broadcast Urgent" : "Broadcast";
+  });
+
+  document.getElementById("pat-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") connectToken();
+  });
+
+  // Auto-connect if token is saved in session
+  if (getToken()) loadAnnouncements();
+</script>
+</body>
+</html>

@@ -8,9 +8,9 @@
             The GitHub Actions workflow updates version and codebase automatically on each release.
 -->
 <gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
-  <app appid='YOUR_EXTENSION_ID'>
+  <app appid='llmcjcllilnbmicmdhmiagpbplmjmlb'>
     <updatecheck
       version='2.0.0'
-      codebase='https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/releases/latest/download/extension.crx' />
+      codebase='https://github.com/yoyimc9/ocps-repair-validator/releases/latest/download/extension.crx' />
   </app>
 </gupdate>

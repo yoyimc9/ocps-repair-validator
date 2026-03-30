@@ -1,4 +1,4 @@
-# setup.ps1  —  Run this ONCE to generate the signing key and collect the extension ID.
+﻿# setup.ps1  -  Run this ONCE to generate the signing key and collect the extension ID.
 # After running, add the two GitHub Secrets as instructed below.
 
 $extensionDir = "$PSScriptRoot\extension"
@@ -13,8 +13,9 @@ if (-not (Test-Path $chrome)) {
     exit 1
 }
 
-# ── Step 1: Pack the extension (generates extension.pem + extension.crx) ──
-Write-Host "`n[1/3] Packing extension..." -ForegroundColor Cyan
+# -- Step 1: Pack the extension (generates extension.pem + extension.crx) --
+Write-Host ""
+Write-Host "[1/3] Packing extension..." -ForegroundColor Cyan
 & $chrome --pack-extension="$extensionDir" --no-sandbox 2>$null
 
 if (-not (Test-Path "$PSScriptRoot\extension.pem")) {
@@ -25,16 +26,18 @@ if (-not (Test-Path "$PSScriptRoot\extension.pem")) {
 Write-Host "    extension.pem  -> created" -ForegroundColor Green
 Write-Host "    extension.crx  -> created" -ForegroundColor Green
 
-# ── Step 2: Base64-encode the .pem for the GitHub Secret ──────────────────
-Write-Host "`n[2/3] Encoding extension.pem to base64 (for GitHub Secret)..." -ForegroundColor Cyan
+# -- Step 2: Base64-encode the .pem for the GitHub Secret --
+Write-Host ""
+Write-Host "[2/3] Encoding extension.pem to base64 (for GitHub Secret)..." -ForegroundColor Cyan
 $base64Pem = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pemFile))
 
 $secretFile = "$PSScriptRoot\EXTENSION_PEM_SECRET.txt"
 $base64Pem | Set-Content $secretFile -Encoding ASCII
 Write-Host "    Saved to: $secretFile" -ForegroundColor Green
 
-# ── Step 3: Remind user to get extension ID from Chrome ────────────────────
-Write-Host "`n[3/3] Get your Extension ID:" -ForegroundColor Cyan
+# -- Step 3: Remind user to get extension ID from Chrome --
+Write-Host ""
+Write-Host "[3/3] Get your Extension ID:" -ForegroundColor Cyan
 Write-Host "    1. Open chrome://extensions   (Developer mode ON)"
 Write-Host "    2. Click 'Load unpacked' and select: $extensionDir"
 Write-Host "    3. Copy the ID shown under the extension name"
@@ -44,10 +47,10 @@ $extId = Read-Host "Paste your Extension ID here"
 $extId = $extId.Trim()
 
 Write-Host ""
-Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Yellow
-Write-Host " ADD THESE 3 SECRETS IN YOUR GITHUB REPO:" -ForegroundColor Yellow
-Write-Host " (Settings → Secrets and variables → Actions → New secret)" -ForegroundColor Yellow
-Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Yellow
+Write-Host "========================================================" -ForegroundColor Yellow
+Write-Host " ADD THESE 2 SECRETS IN YOUR GITHUB REPO:" -ForegroundColor Yellow
+Write-Host " (Settings -> Secrets and variables -> Actions -> New secret)" -ForegroundColor Yellow
+Write-Host "========================================================" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  Secret name : EXTENSION_PEM" -ForegroundColor White
 Write-Host "  Secret value: (contents of EXTENSION_PEM_SECRET.txt)" -ForegroundColor Gray
@@ -55,19 +58,13 @@ Write-Host ""
 Write-Host "  Secret name : EXTENSION_ID" -ForegroundColor White
 Write-Host "  Secret value: $extId" -ForegroundColor Gray
 Write-Host ""
-Write-Host "  (GITHUB_TOKEN is automatic — no action needed)" -ForegroundColor DarkGray
+Write-Host "  (GITHUB_TOKEN is automatic - no action needed)" -ForegroundColor DarkGray
 Write-Host ""
-
-# ── Step 4: Update manifest.json and docs/updates.xml with placeholder swaps ──
-Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host " ALSO update these files with your GitHub repo details:" -ForegroundColor Cyan
-Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  extension/manifest.json  → replace YOUR_GITHUB_USERNAME / YOUR_REPO_NAME"
-Write-Host "  docs/updates.xml         → replace YOUR_EXTENSION_ID / YOUR_GITHUB_USERNAME / YOUR_REPO_NAME"
-Write-Host ""
-Write-Host "  Then enable GitHub Pages:" -ForegroundColor Cyan
-Write-Host "  Repo Settings → Pages → Source: Deploy from branch → Branch: main, Folder: /docs"
+Write-Host "========================================================" -ForegroundColor Cyan
+Write-Host " ALSO enable GitHub Pages:" -ForegroundColor Cyan
+Write-Host "  Repo Settings -> Pages -> Source: Deploy from branch" -ForegroundColor Cyan
+Write-Host "  Branch: main, Folder: /docs" -ForegroundColor Cyan
+Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Done! Commit everything, push to GitHub, then release with:" -ForegroundColor Green
 Write-Host "  git tag v2.0.0"

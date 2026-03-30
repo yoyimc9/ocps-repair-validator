@@ -126,22 +126,26 @@
     if (!panel) {
       panel = document.createElement("div");
       panel.id = PANEL_ID;
-      document.body.appendChild(panel);
+      // Best position: directly above the form sheet, below the action buttons
+      const sheet = document.querySelector(".o_form_sheet");
+      if (sheet && sheet.parentElement) {
+        sheet.parentElement.insertBefore(panel, sheet);
+      } else {
+        const view = document.querySelector(".o_form_view") || document.body;
+        view.prepend(panel);
+      }
     }
     return panel;
   }
 
   function renderLoading(repairId) {
     const panel = ensurePanel();
-    panel.className = "ocps-panel ocps-loading";
+    panel.className = "ocps-loading";
     panel.classList.remove("ocps-hidden");
     panel.innerHTML = `
-      <div class="ocps-header">
-        <span class="ocps-title">🔍 Validating Repair #${repairId}…</span>
-        <button class="ocps-close" title="Close">&times;</button>
-      </div>
-      <div class="ocps-body"><div class="ocps-spinner"></div></div>`;
-    panel.querySelector(".ocps-close").onclick = () => panel.classList.add("ocps-collapsed");
+      <div class="ocps-summary">
+        <span class="ocps-status-badge"><span class="ocps-spinner"></span> Validating…</span>
+      </div>`;
   }
 
   function renderResult(data) {
@@ -209,37 +213,45 @@
       }
     }
 
-    panel.className = `ocps-panel ${statusCls}`;
+    const pillCls = errorCount > 0 ? "ocps-error" : warnCount > 0 ? "ocps-warn" : "ocps-clean";
+    panel.className = pillCls;
+    // Auto-expand when there are issues
+    if (errorCount > 0 || warnCount > 0) panel.classList.remove("ocps-collapsed");
+    else panel.classList.add("ocps-collapsed");
+
     panel.innerHTML = `
-      <div class="ocps-header">
-        <span class="ocps-title">${statusIcon} ${esc(data.name || "Repair")} — ${statusText}</span>
-        <div class="ocps-header-actions">
-          <button class="ocps-refresh" title="Re-validate">🔄</button>
-          <button class="ocps-toggle" title="Collapse">▾</button>
-          <button class="ocps-close" title="Close">&times;</button>
+      <div class="ocps-summary">
+        <span class="ocps-status-badge">${statusIcon} ${statusText}</span>
+        <span class="ocps-summary-meta">${esc(data.state || "")} &nbsp;|&nbsp; ${esc(data.lot_name || "—")} &nbsp;|&nbsp; ${esc(data.device_location || "—")}</span>
+        <div class="ocps-summary-actions">
+          <button class="ocps-btn-icon ocps-refresh" title="Re-validate">🔄</button>
+          <button class="ocps-btn-icon ocps-toggle" title="Toggle details">${panel.classList.contains("ocps-collapsed") ? "▸" : "▾"}</button>
         </div>
       </div>
       <div class="ocps-body">
-        <div class="ocps-meta">
-          <span>State: <strong>${esc(data.state || "—")}</strong></span>
-          <span>Serial: <strong>${esc(data.lot_name || "—")}</strong></span>
-          <span>Location: <strong>${esc(data.device_location || "—")}</strong></span>
-          <span>Coverage: <strong>${esc(data.coverage_type || "—")}</strong></span>
-        </div>
         ${ticketHtml}
         ${partsHtml}
         ${issuesHtml}
         ${partsDetailHtml}
       </div>`;
 
-    // Wire buttons
-    panel.querySelector(".ocps-close").onclick = () => panel.classList.add("ocps-hidden");
-    panel.querySelector(".ocps-toggle").onclick = () => {
-      panel.classList.toggle("ocps-collapsed");
-      const btn = panel.querySelector(".ocps-toggle");
-      btn.textContent = panel.classList.contains("ocps-collapsed") ? "▸" : "▾";
+    panel.querySelector(".ocps-summary").onclick = (e) => {
+      if (!e.target.closest(".ocps-summary-actions")) {
+        panel.classList.toggle("ocps-collapsed");
+        const btn = panel.querySelector(".ocps-toggle");
+        if (btn) btn.textContent = panel.classList.contains("ocps-collapsed") ? "▸" : "▾";
+      }
     };
-    panel.querySelector(".ocps-refresh").onclick = () => {
+
+    // Wire buttons
+    panel.querySelector(".ocps-toggle").onclick = (e) => {
+      e.stopPropagation();
+      panel.classList.toggle("ocps-collapsed");
+      panel.querySelector(".ocps-toggle").textContent =
+        panel.classList.contains("ocps-collapsed") ? "▸" : "▾";
+    };
+    panel.querySelector(".ocps-refresh").onclick = (e) => {
+      e.stopPropagation();
       const rid = getRepairIdFromUrl();
       if (rid) runValidation(rid);
     };
@@ -255,20 +267,22 @@
   function renderError(repairId, message) {
     const panel = ensurePanel();
     panel.classList.remove("ocps-hidden");
-    panel.className = "ocps-panel ocps-disconnected";
+    panel.className = "ocps-error";
     panel.innerHTML = `
-      <div class="ocps-header">
-        <span class="ocps-title">⚡ Validator — Repair #${repairId || "?"}</span>
-        <button class="ocps-close" title="Close">&times;</button>
+      <div class="ocps-summary">
+        <span class="ocps-status-badge">⚡ Connection Error</span>
+        <div class="ocps-summary-actions">
+          <button class="ocps-btn-icon ocps-retry-inline" title="Retry">🔄</button>
+        </div>
       </div>
       <div class="ocps-body">
         <p class="ocps-err-msg">${esc(message)}</p>
         <button class="ocps-retry-btn">Retry</button>
       </div>`;
-    panel.querySelector(".ocps-close").onclick = () => panel.classList.add("ocps-hidden");
-    panel.querySelector(".ocps-retry-btn").onclick = () => {
-      const rid = getRepairIdFromUrl();
-      if (rid) runValidation(rid);
+    panel.querySelector(".ocps-retry-btn").onclick = () => { const rid = getRepairIdFromUrl(); if (rid) runValidation(rid); };
+    panel.querySelector(".ocps-retry-inline").onclick = () => { const rid = getRepairIdFromUrl(); if (rid) runValidation(rid); };
+    panel.querySelector(".ocps-summary").onclick = (e) => {
+      if (!e.target.closest(".ocps-summary-actions")) panel.classList.toggle("ocps-collapsed");
     };
   }
 
@@ -328,12 +342,88 @@
     }
   });
 
+  /* ── Announcements ────────────────────────────────────────────── */
+
+  const ANNOUNCE_URL = "https://raw.githubusercontent.com/yoyimc9/ocps-repair-validator/main/docs/announcements.json";
+  const ANNOUNCE_INTERVAL = 60000; // check every 60 seconds
+
+  function getSeenIds() {
+    return new Promise(resolve => {
+      try {
+        chrome.storage.local.get("ocps_seen_announcements", data => {
+          resolve((data && data.ocps_seen_announcements) || []);
+        });
+      } catch { resolve([]); }
+    });
+  }
+
+  function markSeen(id) {
+    getSeenIds().then(seen => {
+      if (!seen.includes(id)) {
+        seen.push(id);
+        if (seen.length > 300) seen = seen.slice(-300);
+        try { chrome.storage.local.set({ ocps_seen_announcements: seen }); } catch {}
+      }
+    });
+  }
+
+  function showAnnouncementModal(announcement) {
+    return new Promise(resolve => {
+      const existing = document.getElementById("ocps-announce-modal");
+      if (existing) existing.remove();
+
+      const isUrgent = announcement.priority === "urgent";
+      const title = announcement.title || (isUrgent ? "🚨 Urgent Announcement" : "📢 Announcement");
+
+      const overlay = document.createElement("div");
+      overlay.id = "ocps-announce-modal";
+      overlay.innerHTML = `
+        <div class="ocps-modal-box${isUrgent ? " ocps-modal-urgent" : ""}">
+          <div class="ocps-modal-header">${esc(title)}</div>
+          <div class="ocps-modal-body">${esc(announcement.message)}</div>
+          <div class="ocps-modal-footer">
+            <button class="ocps-modal-ok">OK</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector(".ocps-modal-ok").onclick = () => {
+        markSeen(announcement.id);
+        overlay.remove();
+        resolve();
+      };
+    });
+  }
+
+  async function checkAnnouncements() {
+    try {
+      const resp = await fetch(ANNOUNCE_URL + "?_=" + Date.now());
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const list = (data.announcements || []).filter(a => a.active !== false);
+      if (!list.length) return;
+
+      const seen = await getSeenIds();
+      const unseen = list.filter(a => !seen.includes(a.id));
+
+      // Show urgent first, then normal
+      const sorted = [...unseen.filter(a => a.priority === "urgent"), ...unseen.filter(a => a.priority !== "urgent")];
+
+      for (const ann of sorted) {
+        await showAnnouncementModal(ann);
+      }
+    } catch { /* silent — announcements are non-critical */ }
+  }
+
   /* ── Initialization ───────────────────────────────────────────── */
 
   function init() {
     checkForRepairPage();
     observer.observe(document.body, { childList: true, subtree: true });
     setInterval(checkForRepairPage, POLL_INTERVAL);
+    // Announcements: check on load and every minute
+    checkAnnouncements();
+    setInterval(checkAnnouncements, ANNOUNCE_INTERVAL);
   }
 
   if (document.readyState === "complete") {

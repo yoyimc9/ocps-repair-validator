@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "OCPS Repair Validator",
   "version": "2.0.0",
-  "update_url": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/updates.xml",
+  "update_url": "https://yoyimc9.github.io/ocps-repair-validator/updates.xml",
   "description": "Standalone real-time repair validation on Odoo repair pages. Validates directly via JSON-RPC — no dashboard needed.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
-    "*://*.odoo.com/*"
+    "*://*.odoo.com/*",
+    "https://raw.githubusercontent.com/*"
   ],
   "content_scripts": [
     {
