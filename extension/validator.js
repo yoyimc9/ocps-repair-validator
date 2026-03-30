@@ -698,8 +698,19 @@ const Validator = (() => {
     /* ── BER Validation ─────────────────────────────────────────── */
 
     const oowParts = parts.filter(p => p.warranty_type === "OOW");
+    // OOW parts whose coverage type is NOT CHS — these are truly billable and need a quotation
+    const billedOowParts = oowParts.filter(p =>
+      !chsKeywords.some(kw => (p.coverage_type_name || "").toLowerCase().includes(kw))
+    );
     const effectiveSo   = repair._effective_so;
     const effectiveSoId = repair._effective_so_id;
+
+    // CHS + OOW conflict: CHS covers physical damage — OOW parts are invalid on a CHS repair
+    if (hasChs && oowParts.length > 0) {
+      const oowNames = oowParts.map(p => p.product_name).join(", ");
+      err("error", "coverage",
+        `CHS coverage is active but ${oowParts.length} OOW part(s) attached (${oowNames}) — CHS covers physical damage; replace with CHS/IW parts`);
+    }
 
     // ESDP coverage requires a linked quotation (unless resolution is "no repair required")
     if (repair._is_esdp && !isNoRepair && state !== "draft" && !effectiveSoId) {
@@ -734,16 +745,17 @@ const Validator = (() => {
       }
     }
 
-    // No SO (own or inherited from parent) but OOW parts present → flag missing quotation
-    if (state !== "draft" && !effectiveSoId && oowParts.length > 0) {
-      const estimatedTotal = oowParts.reduce((s, p) => s + (p.price_unit * p.demand), 0);
+    // No SO but billed OOW parts present → missing quotation
+    // Parts whose coverage type is CHS are exempt — CHS covers them, no quotation needed
+    if (state !== "draft" && !effectiveSoId && billedOowParts.length > 0) {
       err("error", "ber",
-        `BER: Quotation/Sales Order not linked — estimated: $${estimatedTotal.toFixed(2)} (${oowParts.length} OOW part(s) present)`);
+        `BER: Quotation/Sales Order not linked — ${billedOowParts.length} OOW part(s) present (not covered by CHS)`);
     }
 
-    // Family-wide OOW cost vs. BER threshold ($${BER_THRESHOLD})
+    // Family-wide OOW cost vs. BER threshold
+    // Skip entirely when CHS is active — CHS-covered OOW parts do not count toward BER cost
     const familyCost = repair._family_oow_cost || 0;
-    if (state !== "draft" && familyCost >= BER_THRESHOLD && !hasBerTag) {
+    if (state !== "draft" && !hasChs && familyCost >= BER_THRESHOLD && !hasBerTag) {
       const scope = repair._parent_id || repair._is_rework ? "family" : "repair";
       err("error", "ber",
         `BER threshold met: ${scope} OOW cost $${familyCost.toFixed(2)} ≥ $${BER_THRESHOLD} — add tag 'BER-Threshold Met' and place repair On Hold`);
