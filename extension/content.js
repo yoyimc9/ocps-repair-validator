@@ -295,6 +295,7 @@
 
   async function runValidation(repairId) {
     renderLoading(repairId);
+    await loadBlockedSerials(); // always fetch fresh list before checking
     try {
       const result = await Validator.validateRepair(repairId);
       renderResult(result);
