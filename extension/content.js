@@ -350,8 +350,8 @@
 
   /* ── Announcements & Blocked Serials ────────────────────────── */
 
-  const ANNOUNCE_URL  = "https://raw.githubusercontent.com/yoyimc9/ocps-repair-validator/main/docs/announcements.json";
-  const BLOCKED_URL   = "https://raw.githubusercontent.com/yoyimc9/ocps-repair-validator/main/docs/blocked-serials.json";
+  const ANNOUNCE_URL  = "http://10.56.65.139:3131/api/announcements";
+  const BLOCKED_URL   = "http://10.56.65.139:3131/api/blocked";
   const ANNOUNCE_INTERVAL = 60000;
 
   let cachedBlockedSerials = [];
