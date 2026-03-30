@@ -73,6 +73,9 @@ const Validator = (() => {
     "ber-parts requested", "ber-part(s) requested",
   ]);
 
+  /** OOW cost (family-wide, USD) that triggers BER workflow — mirrors Odoo config. */
+  const BER_THRESHOLD = 250;
+
   /* ────────────────────────────────────────────────────────────────── *
    *  WARRANTY CLASSIFICATION
    * ────────────────────────────────────────────────────────────────── */
@@ -270,6 +273,8 @@ const Validator = (() => {
       }
     }
 
+    repair._is_esdp = repair._coverage_type.toLowerCase().includes("esdp");
+
     // Tags — read from DOM first
     repair._tags = [];
     const tagDom = schema.tagField ? readDomTags(schema.tagField) : null;
@@ -379,8 +384,44 @@ const Validator = (() => {
       } catch (_) { /* skip */ }
     }
 
-    // Family members (for family-level validation)
+    // Effective SO — child/rework tickets inherit the parent's SO when they have none
+    repair._effective_so_id = repair._so_id || null;
+    repair._effective_so = repair._so;
+    if (!repair._so_id && repair._parent_id) {
+      try {
+        const parentRecs = await OdooRPC.read("repair.order", [repair._parent_id], ["sale_order_id"]);
+        if (parentRecs.length) {
+          const parentSoId = OdooRPC.m2oId(parentRecs[0].sale_order_id);
+          if (parentSoId) {
+            repair._effective_so_id = parentSoId;
+            const soFields = ["id", "name", "amount_total", "amount_untaxed", "state", "order_line"];
+            if (schema.soBerField) soFields.push(schema.soBerField);
+            const sos = await OdooRPC.read("sale.order", [parentSoId], soFields);
+            if (sos.length) {
+              const so = sos[0];
+              so._is_ber = schema.soBerField ? !!so[schema.soBerField] : false;
+              so._from_parent = true;
+              so._lines = [];
+              if (so.order_line && so.order_line.length) {
+                try {
+                  so._lines = await OdooRPC.read("sale.order.line", so.order_line, [
+                    "id", "name", "product_id", "price_unit", "product_uom_qty", "price_subtotal",
+                  ]);
+                } catch (_) { /* skip */ }
+              }
+              repair._effective_so = so;
+            }
+          }
+        }
+      } catch (_) { /* skip */ }
+    }
+
+    // Family members (for family-level validation + OOW cost aggregation)
     repair._family = [];
+    // Start with this repair's own OOW part cost; family members are added below
+    repair._family_oow_cost = repair._parts
+      .filter(p => p.warranty_type === "OOW")
+      .reduce((s, p) => s + p.price_unit * p.demand, 0);
     if (repair._parent_id || repair._is_rework) {
       const rootId = repair._parent_id || repairId;
       try {
@@ -390,6 +431,28 @@ const Validator = (() => {
            ...(schema.tagField ? [schema.tagField] : [])],
         );
         repair._family = children;
+
+        // Batch-fetch parts from all other family members to sum OOW cost
+        const familyMoveIds = children
+          .filter(f => f.id !== repairId)
+          .flatMap(f => Array.isArray(f.move_ids) ? f.move_ids : [])
+          .filter(Boolean);
+        if (familyMoveIds.length) {
+          try {
+            const famMoves = await OdooRPC.read(
+              schema.lineModel, familyMoveIds,
+              ["price_unit", "product_uom_qty", "repair_line_type", "product_id"]
+            );
+            repair._family_oow_cost += famMoves.reduce((s, mv) => {
+              const rlt = mv.repair_line_type || "";
+              const pName = OdooRPC.m2oName(mv.product_id) || "";
+              if (classifyWarranty(pName, "", rlt, "") === "OOW") {
+                return s + (parseFloat(mv.price_unit) || 0) * (parseFloat(mv.product_uom_qty) || 0);
+              }
+              return s;
+            }, 0);
+          } catch (_) { /* skip */ }
+        }
       } catch (_) { /* skip */ }
     }
 
@@ -634,56 +697,56 @@ const Validator = (() => {
 
     /* ── BER Validation ─────────────────────────────────────────── */
 
-    if (state !== "draft" && repair._so) {
-      const so = repair._so;
-      // Check for labor line
-      const hasLabor = so._lines.some(l =>
+    const oowParts = parts.filter(p => p.warranty_type === "OOW");
+    const effectiveSo   = repair._effective_so;
+    const effectiveSoId = repair._effective_so_id;
+
+    // ESDP coverage requires a linked quotation (unless resolution is "no repair required")
+    if (repair._is_esdp && !isNoRepair && state !== "draft" && !effectiveSoId) {
+      err("error", "ber",
+        "ESDP coverage requires a linked Quotation/Sales Order — create and link a quotation before completing the repair");
+    }
+
+    if (state !== "draft" && effectiveSo) {
+      const soLabel = effectiveSo._from_parent ? " (inherited from parent repair)" : "";
+
+      // Every repair with a SO must have a Labor line on the quotation
+      const hasLabor = effectiveSo._lines.some(l =>
         (OdooRPC.m2oName(l.product_id) || l.name || "").toLowerCase().includes("labor")
       );
       if (!hasLabor) {
-        err("error", "ber", "BER: Quotation is missing a Labor line");
+        err("error", "ber", `BER: Quotation${soLabel} is missing a Labor line`);
       }
 
-      if (so._is_ber) {
-        // SO flagged as BER — state checks
+      if (effectiveSo._is_ber) {
+        // SO flagged as BER — repair should be On Hold unless an active child is handling it
         if (state !== "on_hold") {
-          // Check for active child rework
           const hasActiveChild = repair._family.some(f =>
             f.is_rework && f.id !== repair.id && !["done", "cancel"].includes(f.state)
           );
           if (!hasActiveChild) {
-            err("error", "ber", "BER: Sale order is flagged as BER but repair is not On Hold — place on hold immediately");
+            err("error", "ber", `BER: Sale order${soLabel} is flagged as BER but repair is not On Hold — place on hold immediately`);
           }
         }
         if (!hasBerTag) {
-          const childHasBer = repair._family.some(f => {
-            if (!f[_schemaCache?.tagField]) return false;
-            // We'd need to resolve tag names; simplified check:
-            return false; // Conservative — flag it
-          });
-          if (!childHasBer) {
-            err("error", "ber", "BER: SO is flagged as BER but repair has no BER-related tag — add 'BER-Threshold Met' or 'BER-Pending Approval'");
-          }
+          err("error", "ber", `BER: SO${soLabel} is flagged as BER but repair has no BER-related tag — add 'BER-Threshold Met' or 'BER-Pending Approval'`);
         }
       }
     }
 
-    // No SO but OOW parts → warn about missing quotation
-    const oowParts = parts.filter(p => p.warranty_type === "OOW");
-    if (state !== "draft" && !repair._so_id && oowParts.length > 0) {
+    // No SO (own or inherited from parent) but OOW parts present → flag missing quotation
+    if (state !== "draft" && !effectiveSoId && oowParts.length > 0) {
       const estimatedTotal = oowParts.reduce((s, p) => s + (p.price_unit * p.demand), 0);
       err("error", "ber",
         `BER: Quotation/Sales Order not linked — estimated: $${estimatedTotal.toFixed(2)} (${oowParts.length} OOW part(s) present)`);
     }
 
-    /* ── Child rework with BER tag but parent missing it ────────── */
-
-    if (repair._is_rework && hasBerTag && repair._parent_id) {
-      const parent = repair._family.find(f => f.id === repair._parent_id);
-      if (parent) {
-        // We'd need parent tags resolved; flag conservatively only if family data present
-        // This is a best-effort check from available data
-      }
+    // Family-wide OOW cost vs. BER threshold ($${BER_THRESHOLD})
+    const familyCost = repair._family_oow_cost || 0;
+    if (state !== "draft" && familyCost >= BER_THRESHOLD && !hasBerTag) {
+      const scope = repair._parent_id || repair._is_rework ? "family" : "repair";
+      err("error", "ber",
+        `BER threshold met: ${scope} OOW cost $${familyCost.toFixed(2)} ≥ $${BER_THRESHOLD} — add tag 'BER-Threshold Met' and place repair On Hold`);
     }
 
     return errors;
@@ -710,6 +773,7 @@ const Validator = (() => {
       product_name: repair._product_name,
       partner_name: repair._partner_name,
       coverage_type: repair._coverage_type,
+      is_esdp: repair._is_esdp || false,
       user_name: repair._user_name,
       assessment_name: repair._assessment_name,
       resolution: repair._resolution,
@@ -717,6 +781,9 @@ const Validator = (() => {
       ticket_name: repair._ticket_name,
       ticket_stage: repair._ticket_stage,
       so_name: repair._so ? repair._so.name : null,
+      effective_so_name: repair._effective_so ? repair._effective_so.name : null,
+      effective_so_from_parent: repair._effective_so ? !!repair._effective_so._from_parent : false,
+      family_oow_cost: repair._family_oow_cost || 0,
       parts: repair._parts,
       errors,
       error_count: errorCount,
