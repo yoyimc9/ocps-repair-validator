@@ -705,11 +705,15 @@ const Validator = (() => {
     const effectiveSo   = repair._effective_so;
     const effectiveSoId = repair._effective_so_id;
 
-    // CHS + OOW conflict: CHS covers physical damage — OOW parts are invalid on a CHS repair
-    if (hasChs && oowParts.length > 0) {
-      const oowNames = oowParts.map(p => p.product_name).join(", ");
-      err("error", "coverage",
-        `CHS coverage is active but ${oowParts.length} OOW part(s) attached (${oowNames}) — CHS covers physical damage; replace with CHS/IW parts`);
+    // CHS repairs must only use IW (In Warranty) parts — OOW and BER parts are invalid
+    if (hasChs) {
+      const nonIwParts = parts.filter(p => p.warranty_type === "OOW" || p.warranty_type === "BER");
+      if (nonIwParts.length > 0) {
+        nonIwParts.forEach(p => {
+          err("error", "coverage",
+            `Part ${p.idx} (${p.product_name}): ${p.warranty_type} part is not valid on a CHS repair — CHS covers physical damage under warranty; only IW (In Warranty) parts should be selected`);
+        });
+      }
     }
 
     // ESDP coverage requires a linked quotation (unless resolution is "no repair required")
