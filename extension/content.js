@@ -373,20 +373,32 @@
       if (existing) existing.remove();
 
       const isUrgent = announcement.priority === "urgent";
-      const title = announcement.title || (isUrgent ? "🚨 Urgent Announcement" : "📢 Announcement");
+      const title = announcement.title || (isUrgent ? "System Alert" : "Announcement");
+      const icon = isUrgent ? "⚠️" : "📢";
 
       const overlay = document.createElement("div");
       overlay.id = "ocps-announce-modal";
       overlay.innerHTML = `
         <div class="ocps-modal-box${isUrgent ? " ocps-modal-urgent" : ""}">
-          <div class="ocps-modal-header">${esc(title)}</div>
-          <div class="ocps-modal-body">${esc(announcement.message)}</div>
+          <div class="ocps-modal-titlebar">
+            <span class="ocps-modal-titlebar-text">${icon} ${esc(title)}</span>
+            <button class="ocps-modal-close" title="OK">✕</button>
+          </div>
+          <div class="ocps-modal-body">
+            <span class="ocps-modal-icon">${isUrgent ? "🚨" : "💬"}</span>
+            <span>${esc(announcement.message)}</span>
+          </div>
           <div class="ocps-modal-footer">
             <button class="ocps-modal-ok">OK</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
 
+      overlay.querySelector(".ocps-modal-close").onclick = () => {
+        markSeen(announcement.id);
+        overlay.remove();
+        resolve();
+      };
       overlay.querySelector(".ocps-modal-ok").onclick = () => {
         markSeen(announcement.id);
         overlay.remove();
