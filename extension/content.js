@@ -323,10 +323,13 @@
   function checkForRepairPage() {
     const rid = getRepairIdFromUrl();
     const panelMissing = !document.getElementById(PANEL_ID);
-    if (rid && (rid !== currentRepairId || panelMissing)) {
+    if (rid && (rid !== currentRepairId || (panelMissing && debounceTimer === null))) {
       currentRepairId = rid;
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => runValidation(rid), DEBOUNCE_MS);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        runValidation(rid);
+      }, DEBOUNCE_MS);
     } else if (!rid) {
       currentRepairId = null;
       const panel = document.getElementById(PANEL_ID);
