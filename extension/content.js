@@ -124,19 +124,38 @@
 
   /* ── Panel rendering ──────────────────────────────────────────── */
 
+  function waitForElement(selector, timeout = 5000) {
+    const el = document.querySelector(selector);
+    if (el) return Promise.resolve(el);
+    return new Promise(resolve => {
+      const deadline = Date.now() + timeout;
+      const iv = setInterval(() => {
+        const found = document.querySelector(selector);
+        if (found || Date.now() >= deadline) {
+          clearInterval(iv);
+          resolve(found || null);
+        }
+      }, 80);
+    });
+  }
+
   function ensurePanel() {
     let panel = document.getElementById(PANEL_ID);
+    const sheet = document.querySelector(".o_form_sheet");
     if (!panel) {
       panel = document.createElement("div");
       panel.id = PANEL_ID;
       // Best position: directly above the form sheet, below the action buttons
-      const sheet = document.querySelector(".o_form_sheet");
       if (sheet && sheet.parentElement) {
         sheet.parentElement.insertBefore(panel, sheet);
       } else {
         const view = document.querySelector(".o_form_view") || document.body;
         view.prepend(panel);
       }
+    } else if (sheet && sheet.parentElement && !sheet.parentElement.contains(panel)) {
+      // Panel landed in a fallback position (e.g. body) before Odoo finished re-rendering.
+      // Now that the form sheet is present, move the panel to the correct spot.
+      sheet.parentElement.insertBefore(panel, sheet);
     }
     return panel;
   }
@@ -307,6 +326,8 @@
   /* ── Validation driver ────────────────────────────────────────── */
 
   async function runValidation(repairId) {
+    // Wait for Odoo to finish rendering the form before inserting the panel.
+    await waitForElement(".o_form_sheet", 6000);
     renderLoading(repairId);
     await loadBlockedSerials(); // always fetch fresh list before checking
     try {
