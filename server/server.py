@@ -6,6 +6,7 @@ Install deps : pip install -r requirements.txt
 Run          : python server.py
 """
 
+import hashlib
 import json
 import os
 from flask import Flask, jsonify, request, send_from_directory, abort
@@ -79,6 +80,34 @@ def put_ui_controls():
         abort(400)
     _write("ui-controls.json", data)
     return jsonify({"ok": True})
+# ── Extension version (hash of extension files) ──────────────────────────
+
+EXTENSION_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "extension"))
+
+@app.route("/api/extension/version", methods=["GET"])
+def get_extension_version():
+    """Returns an MD5 hash of all extension source files.
+    The background service worker polls this; a changed hash triggers reload."""
+    h = hashlib.md5()
+    for root, dirs, files in os.walk(EXTENSION_DIR):
+        dirs.sort()
+        for fname in sorted(files):
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, EXTENSION_DIR).replace("\\", "/")
+            h.update(rel.encode())
+            try:
+                with open(fpath, "rb") as f:
+                    h.update(f.read())
+            except OSError:
+                pass
+    version = "unknown"
+    try:
+        with open(os.path.join(EXTENSION_DIR, "manifest.json"), "r", encoding="utf-8") as f:
+            version = json.load(f).get("version", "unknown")
+    except Exception:
+        pass
+    return jsonify({"hash": h.hexdigest(), "version": version})
+
 # ── Run ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

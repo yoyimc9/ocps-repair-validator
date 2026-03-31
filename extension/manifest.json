@@ -4,7 +4,10 @@
   "version": "2.0.0",
   "update_url": "https://yoyimc9.github.io/ocps-repair-validator/updates.xml",
   "description": "Standalone real-time repair validation on Odoo repair pages. Validates directly via JSON-RPC — no dashboard needed.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "alarms"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "host_permissions": [
     "*://*.odoo.com/*",
     "https://raw.githubusercontent.com/*",
