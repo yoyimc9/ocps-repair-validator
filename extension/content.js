@@ -19,8 +19,9 @@
   /* ── Helpers ─────────────────────────────────────────────────────── */
 
   function getRepairIdFromUrl() {
-    const m = window.location.pathname.match(/\/repairs\/(\d+)/);
-    return m ? parseInt(m[1], 10) : null;
+    const matches = [...window.location.pathname.matchAll(/\/repairs\/(\d+)/g)];
+    if (!matches.length) return null;
+    return parseInt(matches[matches.length - 1][1], 10);
   }
 
   function esc(s) {
@@ -229,7 +230,7 @@
     panel.innerHTML = `
       <div class="ocps-summary">
         <span class="ocps-status-badge">${statusIcon} ${statusText}</span>
-        <span class="ocps-summary-meta">${esc(data.state || "")} &nbsp;|&nbsp; ${esc(data.lot_name || "—")} &nbsp;|&nbsp; ${esc(data.device_location || "—")}</span>
+        <span class="ocps-summary-meta">${esc(data.name || "")} &nbsp;|&nbsp; ${esc(data.state || "")} &nbsp;|&nbsp; ${esc(data.lot_name || "—")} &nbsp;|&nbsp; ${esc(data.device_location || "—")}</span>
         <div class="ocps-summary-actions">
           <button class="ocps-btn-icon ocps-refresh" title="Re-validate">🔄</button>
           <button class="ocps-btn-icon ocps-toggle" title="Toggle details">${panel.classList.contains("ocps-collapsed") ? "▸" : "▾"}</button>

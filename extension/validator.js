@@ -460,7 +460,19 @@ const Validator = (() => {
     repair._family_oow_cost = repair._parts
       .filter(p => p.warranty_type === "OOW")
       .reduce((s, p) => s + p.price_unit * p.demand, 0);
-    const rootId = repair._parent_id || repairId;
+    let rootId = repairId;
+    if (repair._parent_id) {
+      try {
+        let cursor = repair._parent_id;
+        while (cursor) {
+          const pRecs = await OdooRPC.read("repair.order", [cursor], ["parent_repair_id"]);
+          if (!pRecs.length) break;
+          const grandparent = OdooRPC.m2oId(pRecs[0].parent_repair_id);
+          if (!grandparent) { rootId = cursor; break; }
+          cursor = grandparent;
+        }
+      } catch (_) { rootId = repair._parent_id; }
+    }
     try {
       const family = await OdooRPC.searchRead("repair.order",
         ["|", ["id", "=", rootId], ["parent_repair_id", "=", rootId]],
