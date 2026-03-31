@@ -71,6 +71,7 @@ const Validator = (() => {
     "ber-threshold met", "ber-pending approval",
     "ber-approved for dismantle", "ber-approved for repair",
     "ber-parts requested", "ber-part(s) requested",
+    "ber-parts requested", "ber-part(s) requested",
   ]);
 
   /** OOW cost (family-wide, USD) that triggers BER workflow — mirrors Odoo config. */
@@ -316,7 +317,7 @@ const Validator = (() => {
         }
       }
     }
-    repair._tags_lower = repair._tags.map(t => t.toLowerCase());
+    repair._tags_lower = repair._tags.map(t => t.toLowerCase().replace(/\s*-\s*/g, "-").trim());
 
     // Ticket
     repair._ticket_name = "";
