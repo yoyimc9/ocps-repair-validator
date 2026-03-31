@@ -216,7 +216,9 @@ const Validator = (() => {
   // Optional fields that may exist
   const MOVE_OPT_FIELDS = [
     "problem_statement_id", "x_studio_problem_statement", "coverage_type_id",
-    "qty_done", // Odoo 16 name for done quantity (renamed to 'quantity' in Odoo 17)
+    "qty_done",   // Odoo 16 name for done quantity (renamed to 'quantity' in Odoo 17)
+    "picked",     // Odoo 17 boolean — the 'Used' checkbox; stays True after repair completion
+    "is_done",    // Some Odoo versions / custom modules use this name instead
   ];
 
   async function fetchRepair(repairId) {
@@ -357,8 +359,11 @@ const Validator = (() => {
           warranty_type: wt,
           repair_line_type: rlt,
           demand: parseFloat(mv.product_uom_qty) || 0,
-          // qty_done (Odoo 16) or quantity (Odoo 17) — use whichever is populated
+          // qty_done (Odoo 16) or quantity (Odoo 17) — zeroed by Odoo after repair completion
           done: parseFloat(mv.qty_done !== undefined ? mv.qty_done : mv.quantity) || 0,
+          // 'picked' (Odoo 17) / 'is_done' — the Used checkbox; stays True post-completion
+          // This is the most reliable consumed indicator when available
+          picked: mv.picked === true || mv.is_done === true,
           state: mv.state || "",
           price_unit: parseFloat(mv.price_unit) || 0,
           problem_statement: ps,
@@ -368,14 +373,20 @@ const Validator = (() => {
     }
 
     // For done repairs, Odoo cancels/zeroes all demand stock moves after completion,
-    // making RPC qty unreliable. The DOM 'Done' column always shows the real value:
-    // 0.00 = tech left the part unconsumed, 1.00 = properly consumed.
+    // making RPC qty unreliable. Resolution priority:
+    //   1. p.picked — the 'Used' checkbox boolean from RPC (most reliable, stays set)
+    //   2. DOM readDomPartsDone() — fallback when 'picked'/'is_done' not in schema
     if (repair._state === "done" && repair._parts.length) {
-      const domDone = readDomPartsDone();
-      if (domDone && domDone.length === repair._parts.length) {
-        repair._parts.forEach((p, i) => {
-          if (domDone[i] !== null) p.done = domDone[i];
-        });
+      // Check if picked is actually populated from RPC (not defaulted to false)
+      const pickedIsKnown = repair._parts.some(p => p.picked === true);
+      if (!pickedIsKnown) {
+        // 'picked'/'is_done' not available — fall back to DOM Done column
+        const domDone = readDomPartsDone();
+        if (domDone && domDone.length === repair._parts.length) {
+          repair._parts.forEach((p, i) => {
+            if (domDone[i] !== null) p.done = domDone[i];
+          });
+        }
       }
     }
 
@@ -714,10 +725,11 @@ const Validator = (() => {
         return rlt !== "remove" && rlt !== "recycle";
       });
       consumableParts.forEach(p => {
-        // p.done is DOM-corrected for done repairs (see readDomPartsDone above),
-        // so 0 = tech genuinely did not consume the part, not an Odoo zeroing artifact.
-        // For under_repair, p.done still comes from RPC (qty populated while in progress).
-        const isUsed = p.done >= p.demand;
+        // Consumed check — priority order:
+        //   1. p.picked (RPC 'picked'/'is_done' boolean) — most reliable, stays set after completion
+        //   2. p.done >= p.demand — works for under_repair (qty still populated),
+        //      and for done repairs when DOM correction was applied (pickedIsKnown=false)
+        const isUsed = p.picked || p.done >= p.demand;
         if (!isUsed) {
           err("error", "part",
             `Part ${p.idx} (${p.product_name}): Not consumed — Done (${p.done}) of ${p.demand} required (must be marked as used before completing the repair)`);
