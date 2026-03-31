@@ -204,13 +204,11 @@
     // Unconsumed parts detail.
     // Reliable check: move state === 'done' means consumed (Odoo zeroes qty after completion).
     // For under_repair also show qty-based mismatches while the move is still in progress.
-    // Skip for parent repairs that have children — children handle consumption by design.
-    const isParentWithChildren = !data.parent_repair_id && data.family_size > 1;
     let partsDetailHtml = "";
-    if (data.parts && data.parts.length && ["under_repair", "done"].includes(data.state) && !isParentWithChildren) {
+    if (data.parts && data.parts.length && ["under_repair", "done"].includes(data.state)) {
       const unconsumed = data.parts.filter(p => {
         const moveStateDone = (p.state || "").toLowerCase() === "done";
-        if (moveStateDone) return false;  // consumed — move completed by Odoo
+        if (moveStateDone) return false;
         if (data.state === "under_repair") return p.done < p.demand;
         return true; // done repair + move not in done state = truly unconsumed
       });

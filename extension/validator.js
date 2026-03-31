@@ -680,16 +680,7 @@ const Validator = (() => {
     // Exception cases where parts are not expected to be consumed
     const skipConsumption = isNoRepair || isRtcTag || isDismantleTag;
 
-    // Parent repairs that have child/rework tickets are also exempt:
-    // the workflow intentionally leaves parent parts at done:0 and creates a
-    // child repair where the technician records actual consumption.
-    const hasChildren = repair._family.some(f => f.id !== repair.id && !repair._parent_id
-      ? f.parent_repair_id === repair.id
-      : false);
-    // Simpler: family has more than just this repair AND this is the root (no parent)
-    const isParentWithChildren = !repair._parent_id && repair._family.length > 1;
-
-    if (["under_repair", "done"].includes(state) && !skipConsumption && !isParentWithChildren) {
+    if (["under_repair", "done"].includes(state) && !skipConsumption) {
       const consumableParts = parts.filter(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
         return rlt !== "remove" && rlt !== "recycle";
