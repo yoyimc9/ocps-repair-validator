@@ -680,21 +680,21 @@ const Validator = (() => {
     // Exception cases where parts are not expected to be consumed
     const skipConsumption = isNoRepair || isRtcTag || isDismantleTag;
 
-    // Only check consumption while repair is still In Progress.
-    // For Done repairs, Odoo already validated consumption on the state transition —
-    // re-checking via RPC is unreliable because move states/qty may lag behind.
-    if (state === "under_repair" && !skipConsumption) {
-      // Check all parts except explicit removals/recyclables
+    if (["under_repair", "done"].includes(state) && !skipConsumption) {
       const consumableParts = parts.filter(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
         return rlt !== "remove" && rlt !== "recycle";
       });
       consumableParts.forEach(p => {
-        // "Used" means move is done OR done qty >= demand
-        const isUsed = (p.state || "").toLowerCase() === "done" || p.done >= p.demand;
+        // Move state === 'done' is the reliable consumed indicator.
+        // For under_repair: also accept done qty >= demand (qty still populated).
+        // For done repairs: qty fields are zeroed by Odoo after consumption so
+        //   rely solely on move state — a move not in 'done' state was truly skipped.
+        const moveStateDone = (p.state || "").toLowerCase() === "done";
+        const isUsed = moveStateDone || (state === "under_repair" && p.done >= p.demand);
         if (!isUsed) {
           err("error", "part",
-            `Part ${p.idx} (${p.product_name}): Not marked as Used — Done (${p.done}) < Demand (${p.demand})`);
+            `Part ${p.idx} (${p.product_name}): Not consumed — part was left at 0 (move state: ${p.state || "unknown"})`);
         }
       });
     }

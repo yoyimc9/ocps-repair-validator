@@ -201,11 +201,17 @@
       issuesHtml += `</ul>`;
     }
 
-    // Unconsumed parts detail — only relevant while repair is still in progress
-    // For done/repaired repairs Odoo already validated consumption; RPC qty may not reflect it
+    // Unconsumed parts detail.
+    // Reliable check: move state === 'done' means consumed (Odoo zeroes qty after completion).
+    // For under_repair also show qty-based mismatches while the move is still in progress.
     let partsDetailHtml = "";
-    if (data.state === "under_repair" && data.parts && data.parts.length) {
-      const unconsumed = data.parts.filter(p => p.done < p.demand);
+    if (data.parts && data.parts.length && ["under_repair", "done"].includes(data.state)) {
+      const unconsumed = data.parts.filter(p => {
+        const moveStateDone = (p.state || "").toLowerCase() === "done";
+        if (moveStateDone) return false;  // consumed — move completed by Odoo
+        if (data.state === "under_repair") return p.done < p.demand;
+        return true; // done repair + move not in done state = truly unconsumed
+      });
       if (unconsumed.length) {
         partsDetailHtml = `<div class="ocps-parts-detail">
           <strong>Unconsumed Parts:</strong>
