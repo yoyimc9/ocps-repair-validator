@@ -13,17 +13,27 @@
   const POLL_INTERVAL = 1000;
   const DEBOUNCE_MS = 1200;
   const RPC_REVALIDATE_DEBOUNCE_MS = 2500;
+  const DOM_REVALIDATE_DEBOUNCE_MS = 1500; // live revalidation after form DOM changes
 
   let currentRepairId = null;
   let debounceTimer = null;
   let rpcDebounceTimer = null;
+  let domDebounceTimer = null;
+  let formObserver = null;
 
   /* ── Helpers ─────────────────────────────────────────────────────── */
 
   function getRepairIdFromUrl() {
-    const matches = [...window.location.pathname.matchAll(/\/repairs\/(\d+)/g)];
-    if (!matches.length) return null;
-    return parseInt(matches[matches.length - 1][1], 10);
+    const path = window.location.pathname;
+    if (!path.includes("/repairs/")) return null;
+    // Return null unless the path ends with a numeric segment (a specific form record).
+    // /odoo/repairs/2076                  → 2076  (parent repair form)
+    // /odoo/repairs/2076/repair.order     → null  (rework list — no specific record)
+    // /odoo/repairs/2076/repair.order/5678 → 5678 (child/rework repair form)
+    const segments = path.split("/").filter(Boolean);
+    const lastSeg = segments[segments.length - 1];
+    if (!/^\d+$/.test(lastSeg)) return null;
+    return parseInt(lastSeg, 10);
   }
 
   function esc(s) {
@@ -325,7 +335,34 @@
 
   /* ── Validation driver ────────────────────────────────────────── */
 
+  /* ── Form MutationObserver — live revalidation on DOM changes ─── */
+
+  function stopFormObserver() {
+    if (formObserver) { formObserver.disconnect(); formObserver = null; }
+    clearTimeout(domDebounceTimer);
+    domDebounceTimer = null;
+  }
+
+  function startFormObserver(repairId) {
+    stopFormObserver();
+    const form = document.querySelector(".o_form_view");
+    if (!form) return;
+    formObserver = new MutationObserver((mutations) => {
+      // Ignore mutations that only affect our own validation panel (avoid loop).
+      const panel = document.getElementById(PANEL_ID);
+      if (panel && mutations.every(m => m.target === panel || panel.contains(m.target))) return;
+      clearTimeout(domDebounceTimer);
+      domDebounceTimer = setTimeout(() => {
+        if (currentRepairId === repairId) runValidation(repairId);
+      }, DOM_REVALIDATE_DEBOUNCE_MS);
+    });
+    formObserver.observe(form, { childList: true, subtree: true, characterData: true });
+  }
+
+  /* ── Validation driver ────────────────────────────────────────── */
+
   async function runValidation(repairId) {
+    stopFormObserver(); // pause live observer while validation runs
     // Wait for Odoo to finish rendering the form before inserting the panel.
     await waitForElement(".o_form_sheet", 6000);
     renderLoading(repairId);
@@ -336,6 +373,8 @@
     } catch (err) {
       console.error("[OCPS] Validation failed:", err);
       renderError(repairId, err.message || "Validation failed — see console");
+    } finally {
+      startFormObserver(repairId); // resume live observer once panel is painted
     }
   }
 
@@ -353,6 +392,7 @@
       }, DEBOUNCE_MS);
     } else if (!rid) {
       currentRepairId = null;
+      stopFormObserver();
       const panel = document.getElementById(PANEL_ID);
       if (panel) panel.classList.add("ocps-hidden");
       setEndRepairHidden(false, 0);
@@ -389,7 +429,7 @@
   // On freeze, reset currentRepairId so that when the page is thawed and
   // pageshow fires, checkForRepairPage() treats it as a fresh visit and
   // re-validates instead of seeing rid === currentRepairId and skipping.
-  window.addEventListener("pagehide", () => { currentRepairId = null; });
+  window.addEventListener("pagehide", () => { currentRepairId = null; stopFormObserver(); });
   window.addEventListener("pageshow", (e) => {
     if (e.persisted) setTimeout(checkForRepairPage, 100);
   });
