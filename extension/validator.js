@@ -184,6 +184,22 @@ const Validator = (() => {
     return el ? el.textContent.trim() || null : null;
   }
 
+  function readDomPartsDone() {
+    // Reads the Done quantity for each row of the repair parts list, in DOM order.
+    // This is the only reliable source for done repairs: Odoo cancels/zeroes the
+    // stock.move quantity after repair completion, but the UI always shows the
+    // correct consumed qty (0.00 = not consumed by tech, 1.00 = properly consumed).
+    // Tries Odoo 17 field name ('quantity') then Odoo 16 ('qty_done').
+    const rows = document.querySelectorAll('[name="move_ids"] .o_data_row');
+    if (!rows.length) return null;
+    return Array.from(rows).map(row => {
+      const el = row.querySelector('[name="quantity"]') || row.querySelector('[name="qty_done"]');
+      if (!el) return null;
+      const val = parseFloat(el.textContent.trim().replace(/[^\d.]/g, ""));
+      return isNaN(val) ? null : val;
+    });
+  }
+
 
   const REPAIR_BASE_FIELDS = [
     "id", "name", "state", "partner_id", "product_id", "lot_id",
@@ -349,6 +365,18 @@ const Validator = (() => {
           coverage_type_name: covName,
         };
       });
+    }
+
+    // For done repairs, Odoo cancels/zeroes all demand stock moves after completion,
+    // making RPC qty unreliable. The DOM 'Done' column always shows the real value:
+    // 0.00 = tech left the part unconsumed, 1.00 = properly consumed.
+    if (repair._state === "done" && repair._parts.length) {
+      const domDone = readDomPartsDone();
+      if (domDone && domDone.length === repair._parts.length) {
+        repair._parts.forEach((p, i) => {
+          if (domDone[i] !== null) p.done = domDone[i];
+        });
+      }
     }
 
     // Log notes (mail.message)
@@ -686,15 +714,13 @@ const Validator = (() => {
         return rlt !== "remove" && rlt !== "recycle";
       });
       consumableParts.forEach(p => {
-        // Move state === 'done' is the reliable consumed indicator.
-        // For under_repair: also accept done qty >= demand (qty still populated).
-        // For done repairs: qty fields are zeroed by Odoo after consumption so
-        //   rely solely on move state — a move not in 'done' state was truly skipped.
-        const moveStateDone = (p.state || "").toLowerCase() === "done";
-        const isUsed = moveStateDone || (state === "under_repair" && p.done >= p.demand);
+        // p.done is DOM-corrected for done repairs (see readDomPartsDone above),
+        // so 0 = tech genuinely did not consume the part, not an Odoo zeroing artifact.
+        // For under_repair, p.done still comes from RPC (qty populated while in progress).
+        const isUsed = p.done >= p.demand;
         if (!isUsed) {
           err("error", "part",
-            `Part ${p.idx} (${p.product_name}): Not consumed — part was left at 0 (move state: ${p.state || "unknown"})`);
+            `Part ${p.idx} (${p.product_name}): Not consumed — Done (${p.done}) of ${p.demand} required (must be marked as used before completing the repair)`);
         }
       });
     }
