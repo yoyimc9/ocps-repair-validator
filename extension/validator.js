@@ -373,20 +373,16 @@ const Validator = (() => {
     }
 
     // For done repairs, Odoo cancels/zeroes all demand stock moves after completion,
-    // making RPC qty unreliable. Resolution priority:
-    //   1. p.picked — the 'Used' checkbox boolean from RPC (most reliable, stays set)
-    //   2. DOM readDomPartsDone() — fallback when 'picked'/'is_done' not in schema
+    // making RPC qty unreliable. The DOM 'Done' column always shows the real value:
+    // 0.00 = tech left the part unconsumed, 1.00 = properly consumed.
+    // Note: 'picked' is set by Odoo during the completion flow regardless of actual
+    // consumption — it cannot be trusted as a consumed indicator here.
     if (repair._state === "done" && repair._parts.length) {
-      // Check if picked is actually populated from RPC (not defaulted to false)
-      const pickedIsKnown = repair._parts.some(p => p.picked === true);
-      if (!pickedIsKnown) {
-        // 'picked'/'is_done' not available — fall back to DOM Done column
-        const domDone = readDomPartsDone();
-        if (domDone && domDone.length === repair._parts.length) {
-          repair._parts.forEach((p, i) => {
-            if (domDone[i] !== null) p.done = domDone[i];
-          });
-        }
+      const domDone = readDomPartsDone();
+      if (domDone && domDone.length === repair._parts.length) {
+        repair._parts.forEach((p, i) => {
+          if (domDone[i] !== null) p.done = domDone[i];
+        });
       }
     }
 
@@ -725,11 +721,11 @@ const Validator = (() => {
         return rlt !== "remove" && rlt !== "recycle";
       });
       consumableParts.forEach(p => {
-        // Consumed check — priority order:
-        //   1. p.picked (RPC 'picked'/'is_done' boolean) — most reliable, stays set after completion
-        //   2. p.done >= p.demand — works for under_repair (qty still populated),
-        //      and for done repairs when DOM correction was applied (pickedIsKnown=false)
-        const isUsed = p.picked || p.done >= p.demand;
+        // p.done is DOM-corrected for done repairs (see readDomPartsDone above).
+        // 0.00 = tech genuinely did not consume the part before clicking End Repair.
+        // 1.00 = properly consumed. Do not use p.picked — Odoo sets it during the
+        // completion flow regardless of actual consumption.
+        const isUsed = p.done >= p.demand;
         if (!isUsed) {
           err("error", "part",
             `Part ${p.idx} (${p.product_name}): Not consumed — Done (${p.done}) of ${p.demand} required (must be marked as used before completing the repair)`);
