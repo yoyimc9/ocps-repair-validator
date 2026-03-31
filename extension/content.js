@@ -333,18 +333,26 @@
     }
   }
 
-  // Odoo is a SPA — watch for URL changes via History API
-  const origPush = history.pushState;
-  const origReplace = history.replaceState;
-  history.pushState = function () {
-    origPush.apply(this, arguments);
-    checkForRepairPage();
-  };
-  history.replaceState = function () {
-    origReplace.apply(this, arguments);
-    checkForRepairPage();
-  };
+  // Odoo is a SPA — watch for URL changes.
+  // Use the native Navigation API (Chrome 102+) when available — it fires once per
+  // actual navigation and cannot be silently overwritten by Odoo's own router patches.
+  // Fall back to monkey-patching history for older Chrome builds.
+  if (typeof navigation !== "undefined" && navigation.addEventListener) {
+    navigation.addEventListener("navigate", checkForRepairPage);
+  } else {
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+    history.pushState = function () {
+      origPush.apply(this, arguments);
+      checkForRepairPage();
+    };
+    history.replaceState = function () {
+      origReplace.apply(this, arguments);
+      checkForRepairPage();
+    };
+  }
   window.addEventListener("popstate", checkForRepairPage);
+  window.addEventListener("hashchange", checkForRepairPage);
 
   // MutationObserver to catch Odoo's internal navigation
   const observer = new MutationObserver(() => {
