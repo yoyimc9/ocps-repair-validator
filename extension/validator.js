@@ -200,6 +200,7 @@ const Validator = (() => {
   // Optional fields that may exist
   const MOVE_OPT_FIELDS = [
     "problem_statement_id", "x_studio_problem_statement", "coverage_type_id",
+    "qty_done", // Odoo 16 name for done quantity (renamed to 'quantity' in Odoo 17)
   ];
 
   async function fetchRepair(repairId) {
@@ -340,7 +341,8 @@ const Validator = (() => {
           warranty_type: wt,
           repair_line_type: rlt,
           demand: parseFloat(mv.product_uom_qty) || 0,
-          done: parseFloat(mv.quantity) || 0,
+          // qty_done (Odoo 16) or quantity (Odoo 17) — use whichever is populated
+          done: parseFloat(mv.qty_done !== undefined ? mv.qty_done : mv.quantity) || 0,
           state: mv.state || "",
           price_unit: parseFloat(mv.price_unit) || 0,
           problem_statement: ps,
@@ -679,7 +681,10 @@ const Validator = (() => {
     // Exception cases where parts are not expected to be consumed
     const skipConsumption = isNoRepair || isRtcTag || isDismantleTag;
 
-    if (["under_repair", "done"].includes(state) && !skipConsumption) {
+    // Only check consumption while repair is still In Progress.
+    // For Done repairs, Odoo already validated consumption on the state transition —
+    // re-checking via RPC is unreliable because move states/qty may lag behind.
+    if (state === "under_repair" && !skipConsumption) {
       // Check all parts except explicit removals/recyclables
       const consumableParts = parts.filter(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
