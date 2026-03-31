@@ -343,18 +343,45 @@
     domDebounceTimer = null;
   }
 
+  function isUserInteractingWithForm() {
+    // Returns true when the user has a form field focused or an Odoo dropdown open,
+    // meaning we should not interrupt them with a revalidation.
+    const el = document.activeElement;
+    if (!el || el === document.body || el === document.documentElement) return false;
+    const tag = el.tagName;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return true;
+    // Odoo autocomplete / combobox widgets
+    if (el.getAttribute("role") === "combobox") return true;
+    // Any focused element inside an open dropdown or autocomplete panel
+    if (el.closest(".dropdown-menu, .o_autocomplete_dropdown, .o_field_many2one_dropdown")) return true;
+    // Odoo marks the currently-editing field widget with .o_focused
+    if (el.closest(".o_field_widget.o_focused")) return true;
+    return false;
+  }
+
   function startFormObserver(repairId) {
     stopFormObserver();
     const form = document.querySelector(".o_form_view");
     if (!form) return;
+
+    function scheduleDomRevalidate() {
+      clearTimeout(domDebounceTimer);
+      domDebounceTimer = setTimeout(function tryRevalidate() {
+        // If user still has a field/dropdown focused, keep waiting instead of interrupting.
+        if (isUserInteractingWithForm()) {
+          domDebounceTimer = setTimeout(tryRevalidate, DOM_REVALIDATE_DEBOUNCE_MS);
+          return;
+        }
+        domDebounceTimer = null;
+        if (currentRepairId === repairId) runValidation(repairId);
+      }, DOM_REVALIDATE_DEBOUNCE_MS);
+    }
+
     formObserver = new MutationObserver((mutations) => {
       // Ignore mutations that only affect our own validation panel (avoid loop).
       const panel = document.getElementById(PANEL_ID);
       if (panel && mutations.every(m => m.target === panel || panel.contains(m.target))) return;
-      clearTimeout(domDebounceTimer);
-      domDebounceTimer = setTimeout(() => {
-        if (currentRepairId === repairId) runValidation(repairId);
-      }, DOM_REVALIDATE_DEBOUNCE_MS);
+      scheduleDomRevalidate();
     });
     formObserver.observe(form, { childList: true, subtree: true, characterData: true });
   }
