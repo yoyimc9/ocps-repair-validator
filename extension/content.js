@@ -201,9 +201,10 @@
       issuesHtml += `</ul>`;
     }
 
-    // Unconsumed parts detail
+    // Unconsumed parts detail — only relevant while repair is still in progress
+    // For done/repaired repairs Odoo already validated consumption; RPC qty may not reflect it
     let partsDetailHtml = "";
-    if (data.parts && data.parts.length) {
+    if (data.state === "under_repair" && data.parts && data.parts.length) {
       const unconsumed = data.parts.filter(p => p.done < p.demand);
       if (unconsumed.length) {
         partsDetailHtml = `<div class="ocps-parts-detail">
