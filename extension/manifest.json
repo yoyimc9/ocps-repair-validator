@@ -13,8 +13,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.odoo.com/odoo/repairs",
-        "*://*.odoo.com/odoo/repairs/*"
+        "*://*.odoo.com/*"
       ],
       "js": ["odoo-rpc.js", "validator.js", "content.js"],
       "css": ["content.css"],
