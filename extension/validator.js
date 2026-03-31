@@ -421,15 +421,21 @@ const Validator = (() => {
       } catch (_) { /* skip */ }
     }
 
-    // Effective SO — child/rework tickets inherit the parent's SO when they have none
+    // Effective SO — child/rework tickets inherit the parent's SO when they have none.
+    // Walks the full ancestor chain to handle grandchild repairs.
     repair._effective_so_id = repair._so_id || null;
     repair._effective_so = repair._so;
     if (!repair._so_id && repair._parent_id) {
       try {
-        const parentRecs = await OdooRPC.read("repair.order", [repair._parent_id], ["sale_order_id"]);
-        if (parentRecs.length) {
-          const parentSoId = OdooRPC.m2oId(parentRecs[0].sale_order_id);
-          if (parentSoId) {
+        let cursor = repair._parent_id;
+        let parentSoId = null;
+        while (cursor && !parentSoId) {
+          const parentRecs = await OdooRPC.read("repair.order", [cursor], ["sale_order_id", "parent_repair_id"]);
+          if (!parentRecs.length) break;
+          parentSoId = OdooRPC.m2oId(parentRecs[0].sale_order_id);
+          if (!parentSoId) cursor = OdooRPC.m2oId(parentRecs[0].parent_repair_id);
+        }
+        if (parentSoId) {
             repair._effective_so_id = parentSoId;
             const soFields = ["id", "name", "amount_total", "amount_untaxed", "state", "order_line"];
             if (schema.soBerField) soFields.push(schema.soBerField);
@@ -449,7 +455,6 @@ const Validator = (() => {
               repair._effective_so = so;
             }
           }
-        }
       } catch (_) { /* skip */ }
     }
 
