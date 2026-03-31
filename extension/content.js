@@ -12,9 +12,11 @@
   const PANEL_ID = "ocps-validator-panel";
   const POLL_INTERVAL = 8000;
   const DEBOUNCE_MS = 1200;
+  const RPC_REVALIDATE_DEBOUNCE_MS = 2500;
 
   let currentRepairId = null;
   let debounceTimer = null;
+  let rpcDebounceTimer = null;
 
   /* ── Helpers ─────────────────────────────────────────────────────── */
 
@@ -353,6 +355,41 @@
   }
   window.addEventListener("popstate", checkForRepairPage);
   window.addEventListener("hashchange", checkForRepairPage);
+
+  /* ── Fetch interceptor — revalidate on Odoo RPC writes ──────────── */
+  // Watches for JSON-RPC calls that mutate repair-relevant models and
+  // schedules a silent re-validation ~2.5 s after the last write lands,
+  // giving Odoo time to finish any downstream cascades (stock moves, etc.)
+  if (!window.fetch.__ocpsPatched) {
+    const _origFetch = window.fetch.bind(window);
+    window.fetch = async function (input, init) {
+      const response = await _origFetch(input, init);
+      try {
+        if (currentRepairId) {
+          const url = (typeof input === "string" ? input : (input && input.url)) || "";
+          if (url.includes("/web/dataset/call_kw")) {
+            let body = null;
+            try { body = JSON.parse(init && init.body); } catch { /* ignore */ }
+            const params  = (body && body.params) || {};
+            const model   = params.model  || "";
+            const method  = params.method || "";
+            const WATCHED = ["repair.order", "stock.move", "repair.line",
+                             "stock.quant", "sale.order", "sale.order.line"];
+            const WRITE_METHODS = ["write", "create", "unlink"];
+            const isWrite = WRITE_METHODS.includes(method) || method.startsWith("action_");
+            if (WATCHED.includes(model) && isWrite) {
+              clearTimeout(rpcDebounceTimer);
+              rpcDebounceTimer = setTimeout(() => {
+                if (currentRepairId) runValidation(currentRepairId);
+              }, RPC_REVALIDATE_DEBOUNCE_MS);
+            }
+          }
+        }
+      } catch { /* never break fetch */ }
+      return response;
+    };
+    window.fetch.__ocpsPatched = true;
+  }
 
   // MutationObserver to catch Odoo's internal navigation
   const observer = new MutationObserver(() => {
