@@ -760,9 +760,15 @@ const Validator = (() => {
     const effectiveSo   = repair._effective_so;
     const effectiveSoId = repair._effective_so_id;
 
-    // CHS repairs must only use IW (In Warranty) parts — OOW and BER parts are invalid
+    // CHS repairs must only use IW (In Warranty) parts — OOW and BER parts are invalid.
+    // Recycle/Remove parts are exempted: they represent wrong parts being returned to stock
+    // (i.e. the correction itself), not new parts being added to the repair.
     if (hasChs) {
-      const nonIwParts = parts.filter(p => p.warranty_type === "OOW" || p.warranty_type === "BER");
+      const nonIwParts = parts.filter(p => {
+        const rlt = (p.repair_line_type || "").toLowerCase();
+        if (rlt === "recycle" || rlt === "remove") return false;
+        return p.warranty_type === "OOW" || p.warranty_type === "BER";
+      });
       if (nonIwParts.length > 0) {
         nonIwParts.forEach(p => {
           err("error", "coverage",
