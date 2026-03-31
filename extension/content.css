@@ -1,5 +1,9 @@
 ﻿/* OCPS Repair Validator - Content Script Styles */
 
+/* -- UI Controls (admin-toggled hide/disable) --------------------------- */
+.ocps-ui-hidden  { display: none !important; }
+.ocps-ui-disabled { opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
+
 /* -- Announcement Modal: Windows 98 Style ------------------------------ */
 #ocps-announce-modal,
 #ocps-blocked-modal {

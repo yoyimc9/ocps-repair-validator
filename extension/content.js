@@ -271,6 +271,9 @@
     const isChs = (data.coverage_type || "").toLowerCase().includes("chs");
     setCreateQuotationHidden(isChs);
 
+    // Apply admin UI control overrides (runs last so it layers on top of validator decisions)
+    applyUiControls();
+
     // Blocked serial check
     if (data.lot_name && checkSerialBlocked(data.lot_name)) {
       showBlockedSerialModal(data.lot_name);
@@ -353,16 +356,69 @@
         const errCount = panel.querySelectorAll(".ocps-issue-err").length;
         if (errCount > 0) setEndRepairHidden(true, errCount);
       }
+      // Re-apply admin UI controls after Odoo re-renders parts of the page
+      applyUiControls();
     }
   });
 
   /* ── Announcements & Blocked Serials ────────────────────────── */
 
-  const ANNOUNCE_URL  = "http://10.56.65.139:3131/api/announcements";
-  const BLOCKED_URL   = "http://10.56.65.139:3131/api/blocked";
-  const ANNOUNCE_INTERVAL = 60000;
+  const ANNOUNCE_URL      = "http://10.56.65.139:3131/api/announcements";
+  const BLOCKED_URL        = "http://10.56.65.139:3131/api/blocked";
+  const UI_CONTROLS_URL    = "http://10.56.65.139:3131/api/ui-controls";
+  const ANNOUNCE_INTERVAL  = 60000;
 
   let cachedBlockedSerials = [];
+  let cachedUiControls     = {};
+
+  // ── UI Controls ──────────────────────────────────────────────────────────
+
+  // Element finders keyed by control ID (must match catalog in admin.html)
+  const CONTROL_DEFS = {
+    btn_create_quotation: () => [...document.querySelectorAll(
+      'button[name="action_create_sale_order"], button[name="action_quotation_create"]')],
+    btn_quality_alert:    () => [...document.querySelectorAll('button[name="action_quality_alert"]')],
+    btn_create_rework:    () => [...document.querySelectorAll(
+      'button[name="action_create_repair_rework"], button[name="action_repair_rework"], button[name="action_rework"]')],
+    stat_product_moves:   () => [...document.querySelectorAll('.o_stat_button[name="product_move"]')],
+    stat_quality_checks:  () => [...document.querySelectorAll('.o_stat_button[name="quality_check_ids"]')],
+    stat_sale_order:      () => [...document.querySelectorAll('.o_stat_button[name="sale_order"]')],
+    tab_repair_notes:     () => [...document.querySelectorAll('.o_notebook .nav-link')]
+      .filter(el => el.textContent.trim() === "Repair Notes")
+      .map(el => el.closest('.nav-item') || el),
+    tab_miscellaneous:    () => [...document.querySelectorAll('.o_notebook .nav-link')]
+      .filter(el => el.textContent.trim() === "Miscellaneous")
+      .map(el => el.closest('.nav-item') || el),
+    tab_rework_info:      () => [...document.querySelectorAll('.o_notebook .nav-link')]
+      .filter(el => el.textContent.trim() === "Rework Info")
+      .map(el => el.closest('.nav-item') || el),
+  };
+
+  async function loadUiControls() {
+    try {
+      const resp = await fetch(UI_CONTROLS_URL + "?_=" + Date.now());
+      if (!resp.ok) return;
+      const data = await resp.json();
+      cachedUiControls = data.controls || {};
+      applyUiControls();
+    } catch { /* silent */ }
+  }
+
+  function applyUiControls() {
+    if (!currentRepairId) return;
+    // Restore previously controlled elements (CSS class approach — no conflict with validator's inline styles)
+    document.querySelectorAll('.ocps-ui-hidden').forEach(el => el.classList.remove('ocps-ui-hidden'));
+    document.querySelectorAll('.ocps-ui-disabled').forEach(el => el.classList.remove('ocps-ui-disabled'));
+    // Apply active controls
+    Object.entries(cachedUiControls).forEach(([id, ctrl]) => {
+      if (!ctrl.enabled) return;
+      const finder = CONTROL_DEFS[id];
+      if (!finder) return;
+      finder().forEach(el => {
+        el.classList.add(ctrl.action === "disable" ? "ocps-ui-disabled" : "ocps-ui-hidden");
+      });
+    });
+  }
 
   async function loadBlockedSerials() {
     try {
@@ -492,6 +548,9 @@
     // Blocked serials: load on start and refresh every minute
     loadBlockedSerials();
     setInterval(loadBlockedSerials, ANNOUNCE_INTERVAL);
+    // UI Controls: load on start and refresh every minute
+    loadUiControls();
+    setInterval(loadUiControls, ANNOUNCE_INTERVAL);
   }
 
   if (document.readyState === "complete") {

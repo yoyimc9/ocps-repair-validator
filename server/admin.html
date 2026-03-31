@@ -168,6 +168,49 @@
     }
 
     .empty { color: #475569; font-size: 13px; padding: 20px 0; text-align: center; }
+
+    /* ── UI Controls ── */
+    .nav-item.active.ui-nav { border-left-color: #8b5cf6; background: rgba(139,92,246,.08); }
+    .nav-badge.violet { background: rgba(139,92,246,.2); color: #a78bfa; }
+
+    .control-group-header {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: #475569;
+      padding: 14px 0 6px; margin-top: 4px;
+    }
+    .control-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 11px 0;
+      border-bottom: 1px solid #1e293b;
+    }
+    .control-item:last-child { border-bottom: none; }
+    .control-info { flex: 1; min-width: 0; }
+    .control-label { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+    .control-desc { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .control-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .control-action {
+      background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+      color: #94a3b8; padding: 4px 8px; font-size: 12px; font-family: inherit;
+      width: auto; cursor: pointer; outline: none;
+    }
+    .control-action:focus { border-color: #8b5cf6; }
+    .toggle-switch {
+      position: relative; display: inline-flex;
+      width: 40px; height: 22px; flex-shrink: 0; cursor: pointer;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute; inset: 0; background: #334155;
+      border-radius: 22px; transition: background .2s;
+    }
+    .toggle-track::before {
+      content: ""; position: absolute; width: 16px; height: 16px;
+      left: 3px; top: 3px; background: #fff; border-radius: 50%;
+      transition: transform .2s;
+    }
+    .toggle-switch input:checked + .toggle-track { background: #8b5cf6; }
+    .toggle-switch input:checked + .toggle-track::before { transform: translateX(18px); }
+    .ui-save-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -188,6 +231,10 @@
     <div class="nav-item blocked-nav" id="nav-blocked" onclick="showTab('blocked')">
       <span class="nav-icon">🔒</span> Block Devices
       <span class="nav-badge red" id="badge-blocked">0</span>
+    </div>
+    <div class="nav-item ui-nav" id="nav-ui-controls" onclick="showTab('ui-controls')">
+      <span class="nav-icon">🎛️</span> UI Controls
+      <span class="nav-badge violet" id="badge-ui-controls">0</span>
     </div>
   </nav>
 
@@ -255,6 +302,21 @@
       <div class="card">
         <h3>Currently Blocked</h3>
         <div id="blocked-list"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ── UI Controls ──────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-ui-controls">
+      <div class="panel-header">
+        <h2>🎛️ UI Controls</h2>
+        <p>Toggle visibility of elements on the Odoo repair order page for all technicians.</p>
+      </div>
+      <div class="card">
+        <h3>Repair Page Elements</h3>
+        <div id="ui-controls-list"><div class="empty">Loading…</div></div>
+        <div class="ui-save-row" style="margin-top:16px;">
+          <span class="status-msg" id="ui-controls-status"></span>
+        </div>
       </div>
     </div>
 
@@ -436,9 +498,101 @@
     btn.textContent = this.value === "urgent" ? "🚨 Broadcast Urgent" : "Broadcast";
   });
 
+  // ── UI Controls ──────────────────────────────────────────────────────────
+  const UI_CONTROL_CATALOG = [
+    { id: "btn_create_quotation", group: "Action Buttons", label: "Create Quotation",   desc: "Button that creates a Sales Order / Quotation for the repair" },
+    { id: "btn_quality_alert",    group: "Action Buttons", label: "Quality Alert",       desc: "Button that creates a Quality Alert ticket" },
+    { id: "btn_create_rework",    group: "Action Buttons", label: "Create Rework",       desc: "Button that creates a child rework repair order" },
+    { id: "stat_product_moves",   group: "Smart Buttons",  label: "Product Moves",      desc: "Stat button linking to stock moves for this repair" },
+    { id: "stat_quality_checks",  group: "Smart Buttons",  label: "Quality Checks",     desc: "Stat button linking to quality check records" },
+    { id: "stat_sale_order",      group: "Smart Buttons",  label: "Sale Order",         desc: "Stat button linking to the associated Sales Order" },
+    { id: "tab_repair_notes",     group: "Notebook Tabs",  label: "Repair Notes tab",   desc: "The Repair Notes tab in the repair notebook" },
+    { id: "tab_miscellaneous",    group: "Notebook Tabs",  label: "Miscellaneous tab",  desc: "The Miscellaneous tab with additional repair settings" },
+    { id: "tab_rework_info",      group: "Notebook Tabs",  label: "Rework Info tab",    desc: "The Rework Info tab showing child repair details" },
+  ];
+
+  let uiControls = {};
+
+  async function loadUiControls() {
+    try {
+      const r = await fetch(`${API}/ui-controls`);
+      const data = await r.json();
+      uiControls = data.controls || {};
+      renderUiControls();
+    } catch (e) {
+      document.getElementById("ui-controls-list").innerHTML =
+        `<div class="empty" style="color:#f87171;">Cannot reach server: ${e.message}</div>`;
+    }
+  }
+
+  async function saveUiControls() {
+    try {
+      const r = await fetch(`${API}/ui-controls`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ controls: uiControls })
+      });
+      if (!r.ok) throw new Error("Server error");
+      setStatus("ui-controls-status", "✅ Saved", false);
+      setTimeout(() => setStatus("ui-controls-status", "", false), 2000);
+    } catch {
+      setStatus("ui-controls-status", "❌ Failed to save", true);
+    }
+  }
+
+  function setControlEnabled(id, enabled) {
+    if (!uiControls[id]) uiControls[id] = { enabled: false, action: "hide" };
+    uiControls[id].enabled = enabled;
+    const enabledCount = Object.values(uiControls).filter(c => c.enabled).length;
+    document.getElementById("badge-ui-controls").textContent = enabledCount;
+    saveUiControls();
+  }
+
+  function setControlAction(id, action) {
+    if (!uiControls[id]) uiControls[id] = { enabled: false, action: "hide" };
+    uiControls[id].action = action;
+    saveUiControls();
+  }
+
+  function renderUiControls() {
+    const el = document.getElementById("ui-controls-list");
+    const groups = {};
+    UI_CONTROL_CATALOG.forEach(item => {
+      if (!groups[item.group]) groups[item.group] = [];
+      groups[item.group].push(item);
+    });
+    const enabledCount = Object.values(uiControls).filter(c => c.enabled).length;
+    document.getElementById("badge-ui-controls").textContent = enabledCount;
+    el.innerHTML = Object.entries(groups).map(([groupName, items]) => `
+      <div class="control-group-header">${esc(groupName)}</div>
+      ${items.map(item => {
+        const ctrl = uiControls[item.id] || { enabled: false, action: "hide" };
+        return `
+          <div class="control-item">
+            <div class="control-info">
+              <div class="control-label">${esc(item.label)}</div>
+              <div class="control-desc">${esc(item.desc)}</div>
+            </div>
+            <div class="control-right">
+              <select class="control-action" onchange="setControlAction('${item.id}', this.value)">
+                <option value="hide"    ${ctrl.action === "hide"    ? "selected" : ""}>Hide</option>
+                <option value="disable" ${ctrl.action === "disable" ? "selected" : ""}>Disable</option>
+              </select>
+              <label class="toggle-switch" title="${ctrl.enabled ? 'Active — click to deactivate' : 'Inactive — click to activate'}">
+                <input type="checkbox" ${ctrl.enabled ? "checked" : ""}
+                  onchange="setControlEnabled('${item.id}', this.checked)">
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+          </div>`;
+      }).join("")}
+    `).join("");
+  }
+
   // ── Init ─────────────────────────────────────────────────────────────────
   loadAnnouncements();
   loadBlocked();
+  loadUiControls();
 </script>
 </body>
 </html>

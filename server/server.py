@@ -66,7 +66,19 @@ def put_blocked():
         abort(400)
     _write("blocked-serials.json", data)
     return jsonify({"ok": True})
+# ── UI Controls ───────────────────────────────────────────────────────────
 
+@app.route("/api/ui-controls", methods=["GET"])
+def get_ui_controls():
+    return jsonify(_read("ui-controls.json", {"controls": {}}))
+
+@app.route("/api/ui-controls", methods=["PUT"])
+def put_ui_controls():
+    data = request.get_json(silent=True)
+    if data is None:
+        abort(400)
+    _write("ui-controls.json", data)
+    return jsonify({"ok": True})
 # ── Run ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
