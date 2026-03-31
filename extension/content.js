@@ -10,7 +10,7 @@
   "use strict";
 
   const PANEL_ID = "ocps-validator-panel";
-  const POLL_INTERVAL = 8000;
+  const POLL_INTERVAL = 1000;
   const DEBOUNCE_MS = 1200;
   const RPC_REVALIDATE_DEBOUNCE_MS = 2500;
 
@@ -341,7 +341,10 @@
   // updates, so window.location still shows the old path when we read it.
   // "navigatesuccess" fires after the navigation commits and window.location is current.
   if (typeof navigation !== "undefined" && navigation.addEventListener) {
+    // navigatesuccess — fires after forward SPA navigations complete
+    // currententrychange — fires on every history entry change including browser back/forward
     navigation.addEventListener("navigatesuccess", checkForRepairPage);
+    navigation.addEventListener("currententrychange", checkForRepairPage);
   } else {
     const origPush = history.pushState;
     const origReplace = history.replaceState;
