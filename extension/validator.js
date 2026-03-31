@@ -418,45 +418,44 @@ const Validator = (() => {
       } catch (_) { /* skip */ }
     }
 
-    // Family members (for family-level validation + OOW cost aggregation)
+    // Family members (for family-level validation + OOW cost aggregation).
+    // Always fetch: rootId is parent's id when this is a child, or this repair's id
+    // when it IS the root. The query returns the root + all its children in one call.
     repair._family = [];
-    // Start with this repair's own OOW part cost; family members are added below
     repair._family_oow_cost = repair._parts
       .filter(p => p.warranty_type === "OOW")
       .reduce((s, p) => s + p.price_unit * p.demand, 0);
-    if (repair._parent_id || repair._is_rework) {
-      const rootId = repair._parent_id || repairId;
-      try {
-        const children = await OdooRPC.searchRead("repair.order",
-          ["|", ["id", "=", rootId], ["parent_repair_id", "=", rootId]],
-          ["id", "name", "state", "move_ids", "is_rework", "parent_repair_id",
-           ...(schema.tagField ? [schema.tagField] : [])],
-        );
-        repair._family = children;
+    const rootId = repair._parent_id || repairId;
+    try {
+      const family = await OdooRPC.searchRead("repair.order",
+        ["|", ["id", "=", rootId], ["parent_repair_id", "=", rootId]],
+        ["id", "name", "state", "move_ids", "is_rework", "parent_repair_id",
+         ...(schema.tagField ? [schema.tagField] : [])],
+      );
+      repair._family = family;
 
-        // Batch-fetch parts from all other family members to sum OOW cost
-        const familyMoveIds = children
-          .filter(f => f.id !== repairId)
-          .flatMap(f => Array.isArray(f.move_ids) ? f.move_ids : [])
-          .filter(Boolean);
-        if (familyMoveIds.length) {
-          try {
-            const famMoves = await OdooRPC.read(
-              schema.lineModel, familyMoveIds,
-              ["price_unit", "product_uom_qty", "repair_line_type", "product_id"]
-            );
-            repair._family_oow_cost += famMoves.reduce((s, mv) => {
-              const rlt = mv.repair_line_type || "";
-              const pName = OdooRPC.m2oName(mv.product_id) || "";
-              if (classifyWarranty(pName, "", rlt, "") === "OOW") {
-                return s + (parseFloat(mv.price_unit) || 0) * (parseFloat(mv.product_uom_qty) || 0);
-              }
-              return s;
-            }, 0);
-          } catch (_) { /* skip */ }
-        }
-      } catch (_) { /* skip */ }
-    }
+      // Batch-fetch move records from all family members except self, then sum OOW cost
+      const familyMoveIds = family
+        .filter(f => f.id !== repairId)
+        .flatMap(f => Array.isArray(f.move_ids) ? f.move_ids : [])
+        .filter(Boolean);
+      if (familyMoveIds.length) {
+        try {
+          const famMoves = await OdooRPC.read(
+            schema.lineModel, familyMoveIds,
+            ["price_unit", "product_uom_qty", "repair_line_type", "product_id"]
+          );
+          repair._family_oow_cost += famMoves.reduce((s, mv) => {
+            const rlt = mv.repair_line_type || "";
+            const pName = OdooRPC.m2oName(mv.product_id) || "";
+            if (classifyWarranty(pName, "", rlt, "") === "OOW") {
+              return s + (parseFloat(mv.price_unit) || 0) * (parseFloat(mv.product_uom_qty) || 0);
+            }
+            return s;
+          }, 0);
+        } catch (_) { /* skip */ }
+      }
+    } catch (_) { /* skip */ }
 
     return repair;
   }
