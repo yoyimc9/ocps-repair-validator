@@ -336,11 +336,12 @@
   }
 
   // Odoo is a SPA — watch for URL changes.
-  // Use the native Navigation API (Chrome 102+) when available — it fires once per
-  // actual navigation and cannot be silently overwritten by Odoo's own router patches.
-  // Fall back to monkey-patching history for older Chrome builds.
+  // Use the native Navigation API (Chrome 102+) when available.
+  // NOTE: use "navigatesuccess" not "navigate" — "navigate" fires BEFORE the URL
+  // updates, so window.location still shows the old path when we read it.
+  // "navigatesuccess" fires after the navigation commits and window.location is current.
   if (typeof navigation !== "undefined" && navigation.addEventListener) {
-    navigation.addEventListener("navigate", checkForRepairPage);
+    navigation.addEventListener("navigatesuccess", checkForRepairPage);
   } else {
     const origPush = history.pushState;
     const origReplace = history.replaceState;
@@ -355,6 +356,15 @@
   }
   window.addEventListener("popstate", checkForRepairPage);
   window.addEventListener("hashchange", checkForRepairPage);
+
+  // bfcache safety: Chrome may freeze this page in the back-forward cache.
+  // On freeze, reset currentRepairId so that when the page is thawed and
+  // pageshow fires, checkForRepairPage() treats it as a fresh visit and
+  // re-validates instead of seeing rid === currentRepairId and skipping.
+  window.addEventListener("pagehide", () => { currentRepairId = null; });
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) setTimeout(checkForRepairPage, 100);
+  });
 
   /* ── Fetch interceptor — revalidate on Odoo RPC writes ──────────── */
   // Watches for JSON-RPC calls that mutate repair-relevant models and
