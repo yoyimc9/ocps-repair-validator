@@ -516,6 +516,7 @@
   const ANNOUNCE_URL      = "http://10.56.65.139:3131/api/announcements";
   const BLOCKED_URL        = "http://10.56.65.139:3131/api/blocked";
   const UI_CONTROLS_URL    = "http://10.56.65.139:3131/api/ui-controls";
+  const MESSAGES_URL       = "http://10.56.65.139:3131/api/messages";
   const ANNOUNCE_INTERVAL  = 60000;
 
   let cachedBlockedSerials = [];
@@ -685,7 +686,82 @@
       }
     } catch { /* silent — announcements are non-critical */ }
   }
+  /* ── Messages ─────────────────────────────────────────────────── */
 
+  async function getOdooUsername() {
+    // Always try fresh from Odoo session; fall back to cached value if unavailable.
+    try {
+      const resp = await fetch("/web/session/get_session_info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "call", params: {} }),
+      });
+      const json = await resp.json();
+      const login = (json.result && (json.result.login || json.result.username)) || "";
+      if (login) {
+        try { chrome.storage.local.set({ ocps_odoo_username: login }); } catch {}
+        return login;
+      }
+    } catch { /* fall through */ }
+    try {
+      return await new Promise(resolve =>
+        chrome.storage.local.get("ocps_odoo_username", d => resolve((d && d.ocps_odoo_username) || ""))
+      );
+    } catch { return ""; }
+  }
+
+  async function ackMessage(msgId, user) {
+    try {
+      await fetch(`${MESSAGES_URL}/${msgId}/ack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user }),
+      });
+    } catch { /* silent */ }
+  }
+
+  function showMessageModal(msg) {
+    return new Promise(resolve => {
+      const existing = document.getElementById("ocps-message-modal");
+      if (existing) existing.remove();
+      const overlay = document.createElement("div");
+      overlay.id = "ocps-message-modal";
+      overlay.innerHTML = `
+        <div class="ocps-modal-box">
+          <div class="ocps-modal-titlebar">
+            <span class="ocps-modal-titlebar-text">💬 Message from Admin</span>
+          </div>
+          <div class="ocps-modal-body">
+            <span class="ocps-modal-icon">📩</span>
+            <span>${esc(msg.text)}</span>
+          </div>
+          <div class="ocps-modal-footer">
+            <button class="ocps-modal-ok">OK — Got it</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector(".ocps-modal-ok").onclick = () => {
+        overlay.remove();
+        resolve();
+      };
+    });
+  }
+
+  async function checkMessages() {
+    const user = await getOdooUsername();
+    if (!user) return;
+    try {
+      const resp = await fetch(`${MESSAGES_URL}?user=${encodeURIComponent(user)}&_=${Date.now()}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const list = data.messages || [];
+      for (const msg of list) {
+        await showMessageModal(msg);
+        await ackMessage(msg.id, user);
+      }
+    } catch { /* silent */ }
+  }
   /* ── Initialization ───────────────────────────────────────────── */
 
   function init() {
@@ -701,6 +777,9 @@
     // UI Controls: load on start and refresh every minute
     loadUiControls();
     setInterval(loadUiControls, ANNOUNCE_INTERVAL);
+    // Messages: check on load and every minute
+    checkMessages();
+    setInterval(checkMessages, ANNOUNCE_INTERVAL);
   }
 
   if (document.readyState === "complete") {

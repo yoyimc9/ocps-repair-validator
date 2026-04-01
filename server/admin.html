@@ -211,6 +211,28 @@
     .toggle-switch input:checked + .toggle-track { background: #8b5cf6; }
     .toggle-switch input:checked + .toggle-track::before { transform: translateX(18px); }
     .ui-save-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+
+    /* ── Messages ── */
+    .nav-item.active.msg-nav { border-left-color: #f59e0b; background: rgba(245,158,11,.08); }
+    .nav-badge.amber { background: rgba(245,158,11,.2); color: #fcd34d; }
+    .msg-item {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .msg-item-header { display: flex; align-items: flex-start; gap: 12px; }
+    .msg-item-meta { flex: 1; min-width: 0; }
+    .msg-to { font-size: 11px; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .04em; color: #64748b; margin-bottom: 4px; }
+    .msg-text { font-size: 13px; color: #cbd5e1; white-space: pre-wrap; line-height: 1.5; }
+    .msg-time { font-size: 11px; color: #475569; margin-top: 6px; }
+    .msg-acks { margin-top: 10px; padding-top: 10px; border-top: 1px solid #1e293b; }
+    .msg-acks-label { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                      letter-spacing: .04em; color: #475569; margin-bottom: 6px; }
+    .msg-ack-entry { font-size: 12px; color: #4ade80; margin-bottom: 2px; }
+    .msg-pending { font-size: 12px; color: #475569; font-style: italic; }
   </style>
 </head>
 <body>
@@ -235,6 +257,10 @@
     <div class="nav-item ui-nav" id="nav-ui-controls" onclick="showTab('ui-controls')">
       <span class="nav-icon">🎛️</span> UI Controls
       <span class="nav-badge violet" id="badge-ui-controls">0</span>
+    </div>
+    <div class="nav-item msg-nav" id="nav-messages" onclick="showTab('messages')">
+      <span class="nav-icon">💬</span> Messages
+      <span class="nav-badge amber" id="badge-messages">0</span>
     </div>
   </nav>
 
@@ -317,6 +343,35 @@
         <div class="ui-save-row" style="margin-top:16px;">
           <span class="status-msg" id="ui-controls-status"></span>
         </div>
+      </div>
+    </div>
+
+    <!-- ── Messages ────────────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-messages">
+      <div class="panel-header">
+        <h2>💬 Messages</h2>
+        <p>Send targeted messages to specific technicians or broadcast to everyone. Techs see them as a modal popup.</p>
+      </div>
+
+      <div class="card">
+        <h3>Send Message</h3>
+        <div class="field">
+          <label>To <span style="font-weight:400;text-transform:none;letter-spacing:0;">(Odoo login, e.g. john.doe@company.com, or <strong>*</strong> for everyone)</span></label>
+          <input type="text" id="msg-to" placeholder="* (everyone)">
+        </div>
+        <div class="field">
+          <label>Message</label>
+          <textarea id="msg-text" placeholder="Type your message here…"></textarea>
+        </div>
+        <div class="row">
+          <button onclick="sendMessage()">Send Message</button>
+          <span class="status-msg" id="msg-send-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Active Messages <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:#475569;">Auto-refreshes every 15 s</span></h3>
+        <div id="messages-list"><div class="empty">Loading…</div></div>
       </div>
     </div>
 
@@ -589,10 +644,87 @@
     `).join("");
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────
+  // ── Messages ────────────────────────────────────────────────────────────────────
+  let messagesList = [];
+
+  async function loadMessages() {
+    try {
+      const r = await fetch(`${API}/messages?_=${Date.now()}`);
+      const data = await r.json();
+      messagesList = data.messages || [];
+      renderMessages();
+    } catch (e) {
+      const el = document.getElementById("messages-list");
+      if (el) el.innerHTML = `<div class="empty" style="color:#f87171;">Cannot reach server: ${e.message}</div>`;
+    }
+  }
+
+  async function sendMessage() {
+    const to   = (document.getElementById("msg-to").value.trim() || "*");
+    const text = document.getElementById("msg-text").value.trim();
+    if (!text) { setStatus("msg-send-status", "Message is required.", true); return; }
+    setStatus("msg-send-status", "Sending…", false);
+    try {
+      const r = await fetch(`${API}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, text }),
+      });
+      if (!r.ok) throw new Error("Server error");
+      document.getElementById("msg-to").value = "";
+      document.getElementById("msg-text").value = "";
+      setStatus("msg-send-status", "✅ Sent! Tech will see it within ~60 seconds.", false);
+      setTimeout(() => setStatus("msg-send-status", "", false), 5000);
+      await loadMessages();
+    } catch {
+      setStatus("msg-send-status", "❌ Failed. Is the server running?", true);
+    }
+  }
+
+  async function deleteMessage(id) {
+    try {
+      await fetch(`${API}/messages/${id}`, { method: "DELETE" });
+      await loadMessages();
+    } catch { /* silent */ }
+  }
+
+  function renderMessages() {
+    const el = document.getElementById("messages-list");
+    if (!el) return;
+    document.getElementById("badge-messages").textContent = messagesList.length;
+    if (!messagesList.length) { el.innerHTML = `<div class="empty">No active messages.</div>`; return; }
+    el.innerHTML = messagesList.map(m => {
+      const acks = m.ack_by || [];
+      const toLabel = m.to === "*" ? "<em>Everyone (broadcast)</em>" : esc(m.to);
+      const ackHtml = acks.length
+        ? acks.map(a => `<div class="msg-ack-entry">✓ ${esc(a.user)} &mdash; ${new Date(a.ts).toLocaleString()}</div>`).join("")
+        : `<div class="msg-pending">No acknowledgements yet</div>`;
+      return `
+        <div class="msg-item">
+          <div class="msg-item-header">
+            <div class="msg-item-meta">
+              <div class="msg-to">To: ${toLabel}</div>
+              <div class="msg-text">${esc(m.text)}</div>
+              <div class="msg-time">${new Date(m.created).toLocaleString()}</div>
+            </div>
+            <div>
+              <button class="danger" onclick="deleteMessage('${m.id}')">Delete</button>
+            </div>
+          </div>
+          <div class="msg-acks">
+            <div class="msg-acks-label">Acknowledged by (${acks.length})</div>
+            ${ackHtml}
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────────────
   loadAnnouncements();
   loadBlocked();
   loadUiControls();
+  loadMessages();
+  setInterval(loadMessages, 15000);
 </script>
 </body>
 </html>

@@ -6,9 +6,11 @@ Install deps : pip install -r requirements.txt
 Run          : python server.py
 """
 
+import datetime
 import hashlib
 import json
 import os
+import uuid
 from flask import Flask, jsonify, request, send_from_directory, abort
 from flask_cors import CORS
 
@@ -107,6 +109,66 @@ def get_extension_version():
     except Exception:
         pass
     return jsonify({"hash": h.hexdigest(), "version": version})
+
+# ── Messages ──────────────────────────────────────────────────────────────
+
+@app.route("/api/messages", methods=["POST"])
+def post_message():
+    data = request.get_json(silent=True)
+    if not data or not data.get("text"):
+        abort(400)
+    entry = {
+        "id": uuid.uuid4().hex[:12],
+        "to": (data.get("to") or "*").strip() or "*",
+        "text": data["text"].strip(),
+        "created": datetime.datetime.utcnow().isoformat() + "Z",
+        "ack_by": [],
+    }
+    msgs = _read("messages.json", {"messages": []})
+    msgs["messages"].insert(0, entry)
+    _write("messages.json", msgs)
+    return jsonify({"id": entry["id"]}), 201
+
+@app.route("/api/messages", methods=["GET"])
+def get_messages():
+    user = (request.args.get("user") or "").strip().lower()
+    msgs = _read("messages.json", {"messages": []})
+    if not user:
+        return jsonify(msgs)
+    result = [
+        m for m in msgs["messages"]
+        if (m.get("to", "*") == "*" or m.get("to", "").lower() == user)
+        and not any(a.get("user", "").lower() == user for a in m.get("ack_by", []))
+    ]
+    return jsonify({"messages": result})
+
+@app.route("/api/messages/<msg_id>/ack", methods=["POST"])
+def ack_message(msg_id):
+    data = request.get_json(silent=True)
+    user = ((data or {}).get("user") or "").strip()
+    if not user:
+        abort(400)
+    msgs = _read("messages.json", {"messages": []})
+    for m in msgs["messages"]:
+        if m["id"] == msg_id:
+            if not any(a.get("user", "").lower() == user.lower() for a in m.get("ack_by", [])):
+                m.setdefault("ack_by", []).append({
+                    "user": user,
+                    "ts": datetime.datetime.utcnow().isoformat() + "Z",
+                })
+            _write("messages.json", msgs)
+            return jsonify({"ok": True})
+    abort(404)
+
+@app.route("/api/messages/<msg_id>", methods=["DELETE"])
+def delete_message(msg_id):
+    msgs = _read("messages.json", {"messages": []})
+    updated = [m for m in msgs["messages"] if m["id"] != msg_id]
+    if len(updated) == len(msgs["messages"]):
+        abort(404)
+    msgs["messages"] = updated
+    _write("messages.json", msgs)
+    return jsonify({"ok": True})
 
 # ── Run ────────────────────────────────────────────────────────────────────
 
