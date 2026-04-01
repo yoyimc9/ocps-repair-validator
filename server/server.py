@@ -135,12 +135,22 @@ def get_messages():
     msgs = _read("messages.json", {"messages": []})
     if not user:
         return jsonify(msgs)
+    # Record user as seen
+    users = _read("users.json", {"users": []})
+    if user not in users["users"]:
+        users["users"].append(user)
+        users["users"].sort()
+        _write("users.json", users)
     result = [
         m for m in msgs["messages"]
         if (m.get("to", "*") == "*" or m.get("to", "").lower() == user)
         and not any(a.get("user", "").lower() == user for a in m.get("ack_by", []))
     ]
     return jsonify({"messages": result})
+
+@app.route("/api/users", methods=["GET"])
+def get_users():
+    return jsonify(_read("users.json", {"users": []}))
 
 @app.route("/api/messages/<msg_id>/ack", methods=["POST"])
 def ack_message(msg_id):

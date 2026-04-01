@@ -356,8 +356,9 @@
       <div class="card">
         <h3>Send Message</h3>
         <div class="field">
-          <label>To <span style="font-weight:400;text-transform:none;letter-spacing:0;">(Odoo login, e.g. john.doe@company.com, or <strong>*</strong> for everyone)</span></label>
-          <input type="text" id="msg-to" placeholder="* (everyone)">
+          <label>To <span style="font-weight:400;text-transform:none;letter-spacing:0;">(Odoo login or <strong>*</strong> for everyone)</span></label>
+          <input type="text" id="msg-to" list="users-list" placeholder="* (everyone)" autocomplete="off">
+          <datalist id="users-list"></datalist>
         </div>
         <div class="field">
           <label>Message</label>
@@ -647,6 +648,15 @@
   // ── Messages ────────────────────────────────────────────────────────────────────
   let messagesList = [];
 
+  async function loadUsers() {
+    try {
+      const r = await fetch(`${API}/users`);
+      const d = await r.json();
+      const dl = document.getElementById("users-list");
+      dl.innerHTML = (d.users || []).map(u => `<option value="${u}">`).join("");
+    } catch (_) {}
+  }
+
   async function loadMessages() {
     try {
       const r = await fetch(`${API}/messages?_=${Date.now()}`);
@@ -723,6 +733,7 @@
   loadAnnouncements();
   loadBlocked();
   loadUiControls();
+  loadUsers();
   loadMessages();
   setInterval(loadMessages, 15000);
 </script>
