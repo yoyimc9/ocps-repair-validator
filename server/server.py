@@ -13,6 +13,7 @@ import os
 import uuid
 from flask import Flask, jsonify, request, send_from_directory, abort
 from flask_cors import CORS
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 CORS(app)  # Allow Chrome extension (chrome-extension://*) to call the API
@@ -84,21 +85,24 @@ def put_ui_controls():
     return jsonify({"ok": True})
 # ── Extension version (hash of extension files) ──────────────────────────
 
-# Override with OCPS_EXTENSION_DIR env var when the server runs on a different
-# machine than where the extension files live (e.g. a shared/network drive).
-EXTENSION_DIR = os.environ.get("OCPS_EXTENSION_DIR") or \
-    os.path.abspath(os.path.join(BASE_DIR, "..", "extension"))
+def _get_extension_dir():
+    """Returns the extension directory: env var > config.json > relative fallback."""
+    cfg = _read("config.json", {})
+    return (os.environ.get("OCPS_EXTENSION_DIR") or
+            cfg.get("extension_dir") or
+            os.path.abspath(os.path.join(BASE_DIR, "..", "extension")))
 
 @app.route("/api/extension/version", methods=["GET"])
 def get_extension_version():
     """Returns an MD5 hash of all extension source files.
     The background service worker polls this; a changed hash triggers reload."""
+    ext_dir = _get_extension_dir()
     h = hashlib.md5()
-    for root, dirs, files in os.walk(EXTENSION_DIR):
+    for root, dirs, files in os.walk(ext_dir):
         dirs.sort()
         for fname in sorted(files):
             fpath = os.path.join(root, fname)
-            rel = os.path.relpath(fpath, EXTENSION_DIR).replace("\\", "/")
+            rel = os.path.relpath(fpath, ext_dir).replace("\\", "/")
             h.update(rel.encode())
             try:
                 with open(fpath, "rb") as f:
@@ -112,7 +116,7 @@ def get_extension_version():
         h.update(nonce.encode())
     version = "unknown"
     try:
-        with open(os.path.join(EXTENSION_DIR, "manifest.json"), "r", encoding="utf-8") as f:
+        with open(os.path.join(ext_dir, "manifest.json"), "r", encoding="utf-8") as f:
             version = json.load(f).get("version", "unknown")
     except Exception:
         pass
@@ -125,6 +129,72 @@ def force_reload():
     and automatically reload."""
     _write("reload_nonce.json", {"nonce": uuid.uuid4().hex})
     return jsonify({"ok": True})
+
+# ── Server Config ─────────────────────────────────────────────────────────
+
+def _patch_url_in_files(ext_dir, old_url, new_url):
+    """Rewrites URL strings in background.js, content.js, and manifest.json
+    host_permissions. Returns a list of warning strings."""
+    warns = []
+    for fname in ("background.js", "content.js"):
+        fpath = os.path.join(ext_dir, fname)
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                src = f.read()
+            if old_url in src:
+                with open(fpath, "w", encoding="utf-8") as f:
+                    f.write(src.replace(old_url, new_url))
+            else:
+                warns.append(f"{fname}: old URL not found — may already be up to date")
+        except OSError as e:
+            warns.append(f"{fname}: {e}")
+    try:
+        mpath = os.path.join(ext_dir, "manifest.json")
+        with open(mpath, "r", encoding="utf-8") as f:
+            mf = json.load(f)
+        parsed = urlparse(new_url)
+        new_perm = f"{parsed.scheme}://{parsed.netloc}/*"
+        kept = [p for p in mf.get("host_permissions", [])
+                if "odoo.com" in p or "github" in p]
+        kept.append(new_perm)
+        mf["host_permissions"] = kept
+        with open(mpath, "w", encoding="utf-8") as f:
+            json.dump(mf, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+    except Exception as e:
+        warns.append(f"manifest.json: {e}")
+    return warns
+
+@app.route("/api/config", methods=["GET"])
+def get_config():
+    cfg = _read("config.json", {})
+    return jsonify({
+        "server_url": cfg.get("server_url", "http://10.56.65.139:3131"),
+        "extension_dir": _get_extension_dir(),
+    })
+
+@app.route("/api/config", methods=["PUT"])
+def put_config():
+    data = request.get_json(silent=True)
+    if data is None:
+        abort(400)
+    cfg = _read("config.json", {})
+    warns = []
+    if "server_url" in data:
+        new_url = (data["server_url"] or "").rstrip("/").strip()
+        if new_url:
+            old_url = cfg.get("server_url", "http://10.56.65.139:3131")
+            cfg["server_url"] = new_url
+            warns.extend(_patch_url_in_files(_get_extension_dir(), old_url, new_url))
+    if "extension_dir" in data:
+        new_dir = (data["extension_dir"] or "").strip()
+        if new_dir:
+            cfg["extension_dir"] = new_dir
+    _write("config.json", cfg)
+    resp = {"ok": True}
+    if warns:
+        resp["warn"] = " | ".join(warns)
+    return jsonify(resp)
 
 # ── Messages ──────────────────────────────────────────────────────────────
 
@@ -199,10 +269,9 @@ def delete_message(msg_id):
 # ── Run ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    _ext_dir = _get_extension_dir()
     print("=" * 52)
-    print("  OCPS Validator — Local Server")
-    print("  Admin panel : http://10.56.65.139:3131/admin")
-    print("  API base    : http://10.56.65.139:3131/api")
-    print(f"  Extension dir: {EXTENSION_DIR}  (exists: {os.path.isdir(EXTENSION_DIR)})")
+    print("  OCPS Validator — Local Server  (port 3131)")
+    print(f"  Extension dir: {_ext_dir}  (exists: {os.path.isdir(_ext_dir)})")
     print("=" * 52)
     app.run(host="0.0.0.0", port=3131, debug=False)

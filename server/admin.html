@@ -226,6 +226,14 @@
       background: #0f172a; border: 1px solid #334155;
       border-radius: 6px; padding: 8px 12px; word-break: break-all;
     }
+
+    .nav-section-label {
+      padding: 18px 20px 4px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: #334155; user-select: none;
+    }
+    .nav-item.active.adv-nav { border-left-color: #06b6d4; background: rgba(6,182,212,.08); }
+
     .msg-item {
       background: #0f172a;
       border: 1px solid #334155;
@@ -254,7 +262,7 @@
       <h1>⚙️ OCPS Admin</h1>
       <div class="server-badge">
         <span class="dot"></span>
-        10.56.65.139:3131
+        <span id="server-host"></span>
       </div>
     </div>
     <div class="nav-item active" id="nav-announcements" onclick="showTab('announcements')">
@@ -265,16 +273,20 @@
       <span class="nav-icon">🔒</span> Block Devices
       <span class="nav-badge red" id="badge-blocked">0</span>
     </div>
-    <div class="nav-item ui-nav" id="nav-ui-controls" onclick="showTab('ui-controls')">
-      <span class="nav-icon">🎛️</span> UI Controls
-      <span class="nav-badge violet" id="badge-ui-controls">0</span>
-    </div>
     <div class="nav-item msg-nav" id="nav-messages" onclick="showTab('messages')">
       <span class="nav-icon">💬</span> Messages
       <span class="nav-badge amber" id="badge-messages">0</span>
     </div>
+    <div class="nav-section-label">Advanced</div>
+    <div class="nav-item ui-nav" id="nav-ui-controls" onclick="showTab('ui-controls')">
+      <span class="nav-icon">🎛️</span> UI Controls
+      <span class="nav-badge violet" id="badge-ui-controls">0</span>
+    </div>
     <div class="nav-item ext-nav" id="nav-extension" onclick="showTab('extension')">
       <span class="nav-icon">🔄</span> Extension
+    </div>
+    <div class="nav-item adv-nav" id="nav-server-config" onclick="showTab('server-config')">
+      <span class="nav-icon">⚙️</span> Server Config
     </div>
   </nav>
 
@@ -390,7 +402,46 @@
         </div>
       </div>
     </div>
+    <!-- ── Server Config ─────────────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-server-config">
+      <div class="panel-header">
+        <h2>⚙️ Server Config</h2>
+        <p>Update the server address or extension directory path.</p>
+      </div>
 
+      <div class="card">
+        <h3>Server URL</h3>
+        <p style="font-size:13px;color:#94a3b8;margin-bottom:16px;line-height:1.6;">
+          The public address of this server. Saving rewrites <code>background.js</code>,
+          <code>content.js</code>, and <code>manifest.json</code> in the extension
+          directory &mdash; all tech computers auto-reload within 60&nbsp;seconds.
+        </p>
+        <div class="field">
+          <label>Server URL</label>
+          <input type="text" id="cfg-server-url" placeholder="http://10.56.65.139:3131">
+        </div>
+        <div class="row">
+          <button onclick="saveServerUrl()">💾 Save &amp; Apply</button>
+          <span class="status-msg" id="cfg-url-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Extension Directory</h3>
+        <p style="font-size:13px;color:#94a3b8;margin-bottom:16px;line-height:1.6;">
+          Absolute path the server reads extension files from (e.g. a shared network drive).
+        </p>
+        <div class="field">
+          <label>Extension Directory Path</label>
+          <input type="text" id="cfg-ext-dir" placeholder="\\\\server\\Share\\extension">
+        </div>
+        <p style="font-size:12px;color:#f59e0b;margin-top:8px;">⚠️ Changing this path requires restarting the server.</p>
+        <div class="row">
+          <button onclick="saveExtDir()" style="background:#334155;color:#e2e8f0;">💾 Save Path</button>
+          <span class="status-msg" id="cfg-dir-status"></span>
+        </div>
+      </div>
+    </div>
     <!-- ── Messages ────────────────────────────────────────────── -->
     <div class="tab-panel" id="tab-messages">
       <div class="panel-header">
@@ -425,7 +476,7 @@
 </div>
 
 <script>
-  const API = "http://10.56.65.139:3131/api";
+  const API = window.location.origin + "/api";
 
   let announcements = [];
   let blockedList   = [];
@@ -803,13 +854,60 @@
     }
   }
 
+  // ── Server Config ──────────────────────────────────────────────────
+  async function loadServerConfig() {
+    try {
+      const r = await fetch(`${API}/config`);
+      const d = await r.json();
+      document.getElementById("cfg-server-url").value = d.server_url || window.location.origin;
+      document.getElementById("cfg-ext-dir").value = d.extension_dir || "";
+    } catch (_) {}
+  }
+
+  async function saveServerUrl() {
+    const url = document.getElementById("cfg-server-url").value.trim();
+    if (!url) { setStatus("cfg-url-status", "URL is required.", true); return; }
+    setStatus("cfg-url-status", "Saving…", false);
+    try {
+      const r = await fetch(`${API}/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ server_url: url }),
+      });
+      const d = await r.json();
+      if (d.warn) setStatus("cfg-url-status", "⚠️ " + d.warn, true);
+      else setStatus("cfg-url-status", "✅ Saved — extensions reload within 60 s.", false);
+    } catch (e) {
+      setStatus("cfg-url-status", "❌ Failed: " + e.message, true);
+    }
+  }
+
+  async function saveExtDir() {
+    const dir = document.getElementById("cfg-ext-dir").value.trim();
+    if (!dir) { setStatus("cfg-dir-status", "Path is required.", true); return; }
+    setStatus("cfg-dir-status", "Saving…", false);
+    try {
+      const r = await fetch(`${API}/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extension_dir: dir }),
+      });
+      if (!r.ok) throw new Error("Server error");
+      setStatus("cfg-dir-status", "✅ Saved — restart the server to apply.", false);
+    } catch (e) {
+      setStatus("cfg-dir-status", "❌ Failed: " + e.message, true);
+    }
+  }
+
   // ── Init ─────────────────────────────────────────────────────────────────
+  document.getElementById("server-host").textContent = window.location.host;
   loadAnnouncements();
   loadBlocked();
   loadUiControls();
   loadUsers();
   loadMessages();
   loadExtHash();
+  loadServerConfig();
   setInterval(loadMessages, 15000);
 </script>
 </body>
