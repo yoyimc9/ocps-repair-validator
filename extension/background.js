@@ -44,6 +44,12 @@ async function checkVersion() {
   if (serverHash !== knownHash) {
     console.log("[OCPS] Extension files changed — reloading...", knownHash.slice(0, 8), "→", serverHash.slice(0, 8));
     await chrome.storage.local.set({ [HASH_KEY]: serverHash });
+    // Reload all open Odoo tabs so new content scripts take effect immediately.
+    // chrome.runtime.reload() alone does NOT re-inject content scripts into existing tabs.
+    try {
+      const tabs = await chrome.tabs.query({ url: "*://*.odoo.com/*" });
+      for (const tab of tabs) { chrome.tabs.reload(tab.id); }
+    } catch (_) { /* skip */ }
     chrome.runtime.reload();
   }
 }
