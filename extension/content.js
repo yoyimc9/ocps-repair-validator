@@ -298,9 +298,11 @@
     // Hide/show End Repair button based on errors
     setEndRepairHidden(errorCount > 0, errorCount);
 
-    // Hide Create Quotation if coverage is CHS
+    // Hide Create Quotation if coverage is CHS (no quotation needed) or if this is a rework
+    // (SO must be on the parent repair, not the rework itself)
     const isChs = (data.coverage_type || "").toLowerCase().includes("chs");
-    setCreateQuotationHidden(isChs);
+    const isRework = !!(data.parent_repair_id);
+    setCreateQuotationHidden(isChs || isRework);
 
     // Apply admin UI control overrides (runs last so it layers on top of validator decisions)
     applyUiControls();

@@ -778,6 +778,14 @@ const Validator = (() => {
       }
     }
 
+    // Rework repairs must NOT have their own SO directly linked — the SO belongs on the parent repair.
+    // If a rework has a direct SO it was created incorrectly and must be moved to the parent.
+    if ((repair._is_rework || repair._parent_id) && repair._so_id && state !== "draft") {
+      const soName = repair._so ? repair._so.name : repair._so_id;
+      err("error", "ber",
+        `Rework: Sales Order (${soName}) is linked directly to this rework — the SO must be on the parent repair, not the rework itself; detach it from here and link it to the parent`);
+    }
+
     // CHS repairs must NOT have a linked quotation — CHS is fully covered under warranty.
     // If an SO exists it was created before validation was live and must be cancelled.
     if (hasChs && effectiveSoId && state !== "draft") {
@@ -793,16 +801,45 @@ const Validator = (() => {
         "ESDP coverage requires a linked Quotation/Sales Order — create and link a quotation before completing the repair");
     }
 
+    // ESDP: any Recycle/Remove parts (inventory adjustments — wrong parts being swapped out)
+    // must be reflected on the linked SO so billing stays accurate.
+    if (repair._is_esdp && effectiveSoId && effectiveSo && state !== "draft") {
+      const adjustmentParts = parts.filter(p => {
+        const rlt = (p.repair_line_type || "").toLowerCase();
+        return rlt === "recycle" || rlt === "remove";
+      });
+      if (adjustmentParts.length > 0) {
+        const names = adjustmentParts.map(p => p.product_name).join(", ");
+        err("warning", "ber",
+          `ESDP: Inventory adjustment part(s) detected (${names}) — verify these are reflected on the linked Sales Order (${effectiveSo.name}); missing adjustments will cause billing discrepancies`);
+      }
+    }
+
     if (state !== "draft" && effectiveSo) {
       const soLabel = effectiveSo._from_parent ? " (inherited from parent repair)" : "";
 
-      // Every repair with a SO must have a Labor line on the quotation
-      // CHS repairs are fully covered under warranty — no labor/quotation required
+      // Every repair with a SO must have a Labor line on the quotation.
+      // Exceptions: CHS (fully covered under warranty), reworks (labor is on the parent repair's SO).
+      const isRework = repair._is_rework || !!repair._parent_id;
       const hasLabor = effectiveSo._lines.some(l =>
         (OdooRPC.m2oName(l.product_id) || l.name || "").toLowerCase().includes("labor")
       );
-      if (!hasLabor && !hasChs) {
+      if (!hasLabor && !hasChs && !isRework) {
         err("error", "ber", `BER: Quotation${soLabel} is missing a Labor line`);
+      }
+
+      // Rework: every Add-type OOW part must appear in the parent SO so it gets billed correctly.
+      if (isRework && effectiveSo._from_parent) {
+        const addOowParts = parts.filter(p =>
+          (p.repair_line_type || "").toLowerCase() === "add" && p.warranty_type === "OOW"
+        );
+        addOowParts.forEach(p => {
+          const inSo = effectiveSo._lines.some(l => OdooRPC.m2oId(l.product_id) === p.product_id);
+          if (!inSo) {
+            err("error", "ber",
+              `Rework: Part ${p.idx} (${p.product_name}) is not listed in the parent SO (${effectiveSo.name}) — add this OOW part to the parent's quotation before completing`);
+          }
+        });
       }
 
       if (effectiveSo._is_ber) {
