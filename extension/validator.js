@@ -779,11 +779,15 @@ const Validator = (() => {
     }
 
     // Rework repairs must NOT have their own SO directly linked — the SO belongs on the parent repair.
-    // If a rework has a direct SO it was created incorrectly and must be moved to the parent.
+    // If a rework has a direct SO it was created before validation was live; cancel it to unblock
+    // End Repair (Odoo disables End Repair when a non-cancelled SO is directly linked to the repair).
     if ((repair._is_rework || repair._parent_id) && repair._so_id && state !== "draft") {
       const soName = repair._so ? repair._so.name : repair._so_id;
-      err("error", "ber",
-        `Rework: Sales Order (${soName}) is linked directly to this rework — the SO must be on the parent repair, not the rework itself; detach it from here and link it to the parent`);
+      const soCancelled = repair._so && repair._so.state === "cancel";
+      if (!soCancelled) {
+        err("error", "ber",
+          `Rework: Sales Order (${soName}) is linked directly to this rework — cancel this SO to re-enable End Repair, then ensure the correct SO is linked on the parent repair instead`);
+      }
     }
 
     // CHS repairs must NOT have a linked quotation — CHS is fully covered under warranty.
