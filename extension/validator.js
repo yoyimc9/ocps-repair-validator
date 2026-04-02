@@ -387,6 +387,21 @@ const Validator = (() => {
       }
     }
 
+    // Fetch product category names for note-reference matching.
+    // Techs often write the category abbreviation (e.g. "MB", "TP", "SPK", "KBB")
+    // instead of the full part name. One batch read covers all unique products.
+    if (repair._parts.length) {
+      const uniqueProdIds = [...new Set(repair._parts.map(p => p.product_id).filter(Boolean))];
+      if (uniqueProdIds.length) {
+        try {
+          const prods = await OdooRPC.read("product.product", uniqueProdIds, ["id", "categ_id"]);
+          const categByProdId = {};
+          prods.forEach(pr => { categByProdId[pr.id] = OdooRPC.m2oName(pr.categ_id) || ""; });
+          repair._parts.forEach(p => { p.categ_name = categByProdId[p.product_id] || ""; });
+        } catch (_) { repair._parts.forEach(p => { p.categ_name = ""; }); }
+      }
+    }
+
     // Log notes (mail.message)
     repair._notes = [];
     try {
@@ -603,8 +618,13 @@ const Validator = (() => {
       const allText = nonEmpty.join(" ").toLowerCase();
       const anyRef = parts.some(p => {
         const name = (p.product_name || "").toLowerCase();
-        // Tokenize on any non-alphanumeric char, keep tokens >= 2 chars
-        const tokens = name.split(/[^a-z0-9]+/).filter(w => w.length >= 2);
+        const categ = (p.categ_name || "").toLowerCase();
+        // Tokenize part name + category abbreviation (e.g. "MB", "TP", "SPK") —
+        // techs often use the category shorthand rather than the full part name.
+        const tokens = [
+          ...name.split(/[^a-z0-9]+/),
+          ...categ.split(/[^a-z0-9]+/),
+        ].filter(w => w.length >= 2);
         return tokens.some(w => allText.includes(w));
       });
       if (!anyRef) {
