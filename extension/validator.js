@@ -829,9 +829,8 @@ const Validator = (() => {
         return rlt === "recycle" || rlt === "remove";
       });
       if (adjustmentParts.length > 0) {
-        const names = adjustmentParts.map(p => p.product_name).join(", ");
         err("warning", "ber",
-          `ESDP: Inventory adjustment part(s) detected (${names}) — verify these are reflected on the linked Sales Order (${effectiveSo.name}); missing adjustments will cause billing discrepancies`);
+          `ESDP: ${adjustmentParts.length} inventory adjustment part(s) present — verify all are accounted for on the linked Sales Order (${effectiveSo.name})`);
       }
     }
 
