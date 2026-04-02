@@ -105,6 +105,11 @@ def get_extension_version():
                     h.update(f.read())
             except OSError:
                 pass
+    # Mix in the force-reload nonce so the admin panel can trigger a reload
+    # even when the extension files themselves haven't changed.
+    nonce = _read("reload_nonce.json", {"nonce": ""}).get("nonce", "")
+    if nonce:
+        h.update(nonce.encode())
     version = "unknown"
     try:
         with open(os.path.join(EXTENSION_DIR, "manifest.json"), "r", encoding="utf-8") as f:
@@ -112,6 +117,14 @@ def get_extension_version():
     except Exception:
         pass
     return jsonify({"hash": h.hexdigest(), "version": version})
+
+@app.route("/api/extension/force-reload", methods=["POST"])
+def force_reload():
+    """Writes a new random nonce that is mixed into the extension version hash.
+    All connected extensions detect the hash change on their next poll (≤60 s)
+    and automatically reload."""
+    _write("reload_nonce.json", {"nonce": uuid.uuid4().hex})
+    return jsonify({"ok": True})
 
 # ── Messages ──────────────────────────────────────────────────────────────
 

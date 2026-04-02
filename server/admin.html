@@ -215,6 +215,17 @@
     /* ── Messages ── */
     .nav-item.active.msg-nav { border-left-color: #f59e0b; background: rgba(245,158,11,.08); }
     .nav-badge.amber { background: rgba(245,158,11,.2); color: #fcd34d; }
+
+    /* ── Extension ── */
+    .nav-item.active.ext-nav { border-left-color: #22c55e; background: rgba(34,197,94,.08); }
+    .reload-btn { background: #22c55e; }
+    .reload-btn:hover { background: #16a34a; }
+    .reload-btn:disabled { background: #166534; color: #4ade80; cursor: not-allowed; }
+    .hash-display {
+      font-family: monospace; font-size: 12px; color: #94a3b8;
+      background: #0f172a; border: 1px solid #334155;
+      border-radius: 6px; padding: 8px 12px; word-break: break-all;
+    }
     .msg-item {
       background: #0f172a;
       border: 1px solid #334155;
@@ -261,6 +272,9 @@
     <div class="nav-item msg-nav" id="nav-messages" onclick="showTab('messages')">
       <span class="nav-icon">💬</span> Messages
       <span class="nav-badge amber" id="badge-messages">0</span>
+    </div>
+    <div class="nav-item ext-nav" id="nav-extension" onclick="showTab('extension')">
+      <span class="nav-icon">🔄</span> Extension
     </div>
   </nav>
 
@@ -342,6 +356,37 @@
         <div id="ui-controls-list"><div class="empty">Loading…</div></div>
         <div class="ui-save-row" style="margin-top:16px;">
           <span class="status-msg" id="ui-controls-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Extension ───────────────────────────────────────────── -->
+    <div class="tab-panel" id="tab-extension">
+      <div class="panel-header">
+        <h2>🔄 Extension</h2>
+        <p>Force all tech computers to reload the Chrome extension within 60 seconds.</p>
+      </div>
+
+      <div class="card">
+        <h3>Force Reload All Extensions</h3>
+        <p style="font-size:13px;color:#94a3b8;margin-bottom:16px;line-height:1.6;">
+          Clicking this bumps a reload token on the server. Every tech's extension
+          detects the change on its next poll and reloads automatically — no manual
+          action required on tech computers.
+        </p>
+        <div class="row">
+          <button class="reload-btn" id="reload-btn" onclick="forceReload()">🔄 Force Reload All</button>
+          <span class="status-msg" id="reload-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Current Extension Hash</h3>
+        <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Fetched from the server. Should match what each tech's extension has stored.</p>
+        <div class="hash-display" id="ext-hash">Loading…</div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b;">Version: <span id="ext-version">—</span></div>
+        <div class="row" style="margin-top:10px;">
+          <button onclick="loadExtHash()" style="background:#334155;color:#e2e8f0;">Refresh</button>
         </div>
       </div>
     </div>
@@ -729,12 +774,42 @@
     }).join("");
   }
 
-  // ── Init ────────────────────────────────────────────────────────────────────────
+  // ── Extension ──────────────────────────────────────────────────────────────
+  async function forceReload() {
+    const btn = document.getElementById("reload-btn");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    try {
+      const r = await fetch(`${API}/extension/force-reload`, { method: "POST" });
+      if (!r.ok) throw new Error("Server error");
+      setStatus("reload-status", "✅ Reload triggered — extensions will reload within 60 s.", false);
+      setTimeout(() => setStatus("reload-status", "", false), 8000);
+      loadExtHash();
+    } catch (e) {
+      setStatus("reload-status", `❌ Failed: ${e.message}`, true);
+    }
+    btn.disabled = false;
+    btn.textContent = "🔄 Force Reload All";
+  }
+
+  async function loadExtHash() {
+    try {
+      const r = await fetch(`${API}/extension/version?_=${Date.now()}`);
+      const d = await r.json();
+      document.getElementById("ext-hash").textContent = d.hash || "(empty)";
+      document.getElementById("ext-version").textContent = d.version || "unknown";
+    } catch (e) {
+      document.getElementById("ext-hash").textContent = `Error: ${e.message}`;
+    }
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────
   loadAnnouncements();
   loadBlocked();
   loadUiControls();
   loadUsers();
   loadMessages();
+  loadExtHash();
   setInterval(loadMessages, 15000);
 </script>
 </body>
