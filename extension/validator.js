@@ -835,7 +835,9 @@ const Validator = (() => {
     }
 
     if (state !== "draft" && effectiveSo) {
-      const soLabel = effectiveSo._from_parent ? " (inherited from parent repair)" : "";
+      const soLabel = effectiveSo._from_parent
+        ? ` (${effectiveSo.name} — inherited from parent repair)`
+        : ` (${effectiveSo.name})`;
 
       // Every repair with a SO must have a Labor line on the quotation.
       // Exceptions: CHS (fully covered under warranty), reworks (labor is on the parent repair's SO).
