@@ -84,7 +84,10 @@ def put_ui_controls():
     return jsonify({"ok": True})
 # ── Extension version (hash of extension files) ──────────────────────────
 
-EXTENSION_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "extension"))
+# Override with OCPS_EXTENSION_DIR env var when the server runs on a different
+# machine than where the extension files live (e.g. a shared/network drive).
+EXTENSION_DIR = os.environ.get("OCPS_EXTENSION_DIR") or \
+    os.path.abspath(os.path.join(BASE_DIR, "..", "extension"))
 
 @app.route("/api/extension/version", methods=["GET"])
 def get_extension_version():
@@ -187,5 +190,6 @@ if __name__ == "__main__":
     print("  OCPS Validator — Local Server")
     print("  Admin panel : http://10.56.65.139:3131/admin")
     print("  API base    : http://10.56.65.139:3131/api")
+    print(f"  Extension dir: {EXTENSION_DIR}  (exists: {os.path.isdir(EXTENSION_DIR)})")
     print("=" * 52)
     app.run(host="0.0.0.0", port=3131, debug=False)
