@@ -569,6 +569,22 @@ const Validator = (() => {
       }
     });
 
+    // Device/part touch variant mismatch.
+    // 2-in-1 devices have a touchscreen and require touch-variant parts.
+    // Parts labelled N/T (Non-Touch) on a 2-in-1 will not fit or function correctly.
+    const deviceName = (repair._product_name || "").toLowerCase();
+    const deviceIs2in1 = /2\s*n\s*1|2in1|2\s*-\s*in\s*-\s*1/.test(deviceName);
+    if (deviceIs2in1) {
+      parts.forEach(p => {
+        const rlt = (p.repair_line_type || "").toLowerCase();
+        if (rlt === "remove" || rlt === "recycle") return;
+        if (/\bn\/t\b|non[- ]?touch/i.test(p.product_name || "")) {
+          err("error", "part",
+            `Part ${p.idx} (${p.product_name}): N/T (Non-Touch) part selected but device is a 2-in-1 (touch) model — select the correct touch-variant part number`);
+        }
+      });
+    }
+
     /* ── Tier 1: Log notes ──────────────────────────────────────── */
 
     const hasNotes = notes.length > 0;
