@@ -9,6 +9,12 @@
 (function () {
   "use strict";
 
+  // Guard against double-injection (e.g. programmatic re-inject after extension reload).
+  // odoo-rpc.js and validator.js use top-level const — a second injection would throw.
+  // This flag is checked by background.js before injecting into existing tabs.
+  if (window.__ocpsInit) return;
+  window.__ocpsInit = true;
+
   const PANEL_ID = "ocps-validator-panel";
   const POLL_INTERVAL = 1000;
   const DEBOUNCE_MS = 1200;

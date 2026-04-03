@@ -61,3 +61,26 @@ checkVersion();
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL_ALARM) checkVersion();
 });
+
+// Inject content scripts into already-open Odoo tabs that missed the initial injection.
+// Covers: fresh extension install, manual reload in chrome://extensions, Chrome restart.
+// The __ocpsInit flag on the page prevents double-injection (and const re-declaration errors).
+async function injectIntoExistingTabs() {
+  try {
+    const tabs = await chrome.tabs.query({ url: "*://*.odoo.com/*" });
+    for (const tab of tabs) {
+      try {
+        const [check] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => !!window.__ocpsInit,
+        });
+        if (check && check.result) continue; // already running — skip
+        await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ["content.css"] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["odoo-rpc.js", "validator.js", "content.js"] });
+      } catch (_) { /* tab may not be injectable (e.g. chrome:// pages) */ }
+    }
+  } catch (_) { /* scripting API not available */ }
+}
+
+chrome.runtime.onInstalled.addListener(() => injectIntoExistingTabs());
+chrome.runtime.onStartup.addListener(() => injectIntoExistingTabs());
