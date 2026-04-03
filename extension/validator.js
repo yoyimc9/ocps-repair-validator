@@ -299,6 +299,38 @@ const Validator = (() => {
       } catch (_) { /* leave empty — history is informational only */ }
     }
 
+    // Enrich delivery entries with repair order data.
+    // Batch-fetch stock.picking for all deliveries to get picking name + linked repair order (WH/RO).
+    // Gracefully skipped if repair_id field is absent (older Odoo versions).
+    if (repair._delivery_history.length) {
+      try {
+        const pickingIds = [...new Set(
+          repair._delivery_history
+            .map(d => Array.isArray(d.picking_id) ? d.picking_id[0] : d.picking_id)
+            .filter(Boolean)
+        )];
+        if (pickingIds.length) {
+          const pickings = await OdooRPC.searchRead(
+            "stock.picking",
+            [["id", "in", pickingIds]],
+            ["id", "name", "date_done", "repair_id"]
+          );
+          const pickingById = {};
+          pickings.forEach(p => { pickingById[p.id] = p; });
+          repair._delivery_history = repair._delivery_history.map(d => {
+            const pid = Array.isArray(d.picking_id) ? d.picking_id[0] : d.picking_id;
+            const pk  = pid ? pickingById[pid] : null;
+            return {
+              ...d,
+              picking_name: pk ? pk.name : (Array.isArray(d.picking_id) ? d.picking_id[1] : ""),
+              repair_id:    pk && pk.repair_id ? OdooRPC.m2oId(pk.repair_id)   : null,
+              repair_name:  pk && pk.repair_id ? OdooRPC.m2oName(pk.repair_id) : null,
+            };
+          });
+        }
+      } catch (_) { /* repair_id absent in this Odoo version — skip enrichment */ }
+    }
+
     // Coverage type — read from DOM first (already rendered, avoids auxiliary model permission issues)
     repair._coverage_type = "";
     const covDom = readDomTags("coverage_type_id");

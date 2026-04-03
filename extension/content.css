@@ -353,3 +353,8 @@
 .ocps-last-delivery { color: #60a5fa; }
 .ocps-last-delivery strong { color: #93c5fd; }
 .ocps-pick-ref { opacity: 0.65; font-size: 11px; }
+
+/* -- Delivery badges (summary bar + history section) ------------------- */
+.ocps-meta-delivered { color: #4ade80; font-weight: 600; }
+.ocps-prev-repair { color: #fbbf24; }
+.ocps-hist-prior { background: rgba(251,191,36,.1); color: #fbbf24; }

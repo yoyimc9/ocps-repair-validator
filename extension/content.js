@@ -200,6 +200,10 @@
     // Ticket info
     const deliveries = data.delivery_history || [];
     const returns    = data.return_history   || [];
+    // thisRepairDeliveries: deliveries whose picking was triggered by THIS repair order
+    // priorDeliveries: deliveries from other repair orders for the same serial
+    const thisRepairDeliveries = deliveries.filter(d => d.repair_id === data.id);
+    const priorDeliveries      = deliveries.filter(d => d.repair_id && d.repair_id !== data.id);
 
     function fmtHistDate(rawDate) {
       if (!rawDate) return "";
@@ -211,9 +215,15 @@
       ticketHtml = `<div class="ocps-ticket">`;
       if (data.ticket_name) ticketHtml += `<span>🎫 Ticket: <strong>${esc(data.ticket_name)}</strong></span>`;
       if (data.ticket_stage) ticketHtml += `<span>Stage: <strong>${esc(data.ticket_stage)}</strong></span>`;
-      if (deliveries.length > 0) {
+      if (thisRepairDeliveries.length > 0) {
+        const d = thisRepairDeliveries[0];
+        ticketHtml += `<span class="ocps-last-delivery">📦 Delivered: <strong>${fmtHistDate(d.date)}</strong>${d.picking_name ? ` <span class="ocps-pick-ref">(${esc(d.picking_name)})</span>` : ""}</span>`;
+      } else if (priorDeliveries.length > 0) {
+        const d = priorDeliveries[0];
+        ticketHtml += `<span class="ocps-last-delivery ocps-prev-repair">⚠️ Prev. repair: <strong>${esc(d.repair_name || "?")}</strong> &nbsp;·&nbsp; ${fmtHistDate(d.date)}</span>`;
+      } else if (deliveries.length > 0) {
         const lastDelivery = deliveries[0];
-        const pickRef = lastDelivery.picking_id ? esc(Array.isArray(lastDelivery.picking_id) ? lastDelivery.picking_id[1] : lastDelivery.picking_id) : "";
+        const pickRef = lastDelivery.picking_name || (lastDelivery.picking_id ? esc(Array.isArray(lastDelivery.picking_id) ? lastDelivery.picking_id[1] : lastDelivery.picking_id) : "");
         ticketHtml += `<span class="ocps-last-delivery">📦 Last delivered: <strong>${fmtHistDate(lastDelivery.date)}</strong>${pickRef ? ` <span class="ocps-pick-ref">(${pickRef})</span>` : ""}</span>`;
       }
       ticketHtml += `</div>`;
@@ -274,13 +284,21 @@
     // Device History section — show when there is any delivery/return move, or repair is done
     let historyHtml = "";
     if (deliveries.length > 0 || returns.length > 0 || data.state === "done") {
+      const hasEnrichment = deliveries.some(d => d.repair_id != null);
       let histBody = "";
-      if (deliveries.length > 0) {
+      if (thisRepairDeliveries.length > 0) {
+        const d = thisRepairDeliveries[0];
+        histBody += `<div class="ocps-history-item ocps-hist-ok">✅ This repair delivered — ${fmtHistDate(d.date)}${d.picking_name ? ` <span class="ocps-pick-ref">(${esc(d.picking_name)})</span>` : ""}</div>`;
+      } else if (!hasEnrichment && deliveries.length > 0) {
         const last = deliveries[0];
-        const pickRef = last.picking_id ? (Array.isArray(last.picking_id) ? last.picking_id[1] : last.picking_id) : "";
+        const pickRef = last.picking_name || (last.picking_id ? (Array.isArray(last.picking_id) ? last.picking_id[1] : last.picking_id) : "");
         histBody += `<div class="ocps-history-item ocps-hist-ok">✅ Delivered to customer ${deliveries.length}× — last: ${fmtHistDate(last.date)}${pickRef ? ` <span class="ocps-pick-ref">(${esc(pickRef)})</span>` : ""}</div>`;
       } else if (data.state === "done") {
         histBody += `<div class="ocps-history-item ocps-hist-pending">⏳ Not yet delivered to customer after this repair</div>`;
+      }
+      if (priorDeliveries.length > 0) {
+        const last = priorDeliveries[0];
+        histBody += `<div class="ocps-history-item ocps-hist-prior">🔁 Prior ${priorDeliveries.length > 1 ? `${priorDeliveries.length}× deliveries` : "delivery"} — last: ${last.repair_name ? `<strong>${esc(last.repair_name)}</strong> ` : ""}${fmtHistDate(last.date)}</div>`;
       }
       if (returns.length > 0) {
         const last = returns[0];
@@ -293,10 +311,13 @@
       </div>`;
     }
 
+    const deliveredBadge = thisRepairDeliveries.length > 0
+      ? ` &nbsp;|&nbsp; <span class="ocps-meta-delivered">📦 Delivered</span>`
+      : "";
     panel.innerHTML = `
       <div class="ocps-summary">
         <span class="ocps-status-badge">${statusIcon} ${statusText}</span>
-        <span class="ocps-summary-meta">${esc(data.name || "")} &nbsp;|&nbsp; ${esc(data.state || "")} &nbsp;|&nbsp; ${esc(data.lot_name || "—")} &nbsp;|&nbsp; ${esc(data.device_location || "—")}</span>
+        <span class="ocps-summary-meta">${esc(data.name || "")} &nbsp;|&nbsp; ${esc(data.state || "")} &nbsp;|&nbsp; ${esc(data.lot_name || "—")} &nbsp;|&nbsp; ${esc(data.device_location || "—")}${deliveredBadge}</span>
         <div class="ocps-summary-actions">
           <button class="ocps-btn-icon ocps-refresh" title="Re-validate">🔄</button>
           <button class="ocps-btn-icon ocps-toggle" title="Toggle details">${panel.classList.contains("ocps-collapsed") ? "▸" : "▾"}</button>
