@@ -313,18 +313,25 @@ const Validator = (() => {
           const pickings = await OdooRPC.searchRead(
             "stock.picking",
             [["id", "in", pickingIds]],
-            ["id", "name", "date_done", "repair_id"]
+            ["id", "name", "date_done", "repair_id", "origin"]
           );
           const pickingById = {};
           pickings.forEach(p => { pickingById[p.id] = p; });
           repair._delivery_history = repair._delivery_history.map(d => {
             const pid = Array.isArray(d.picking_id) ? d.picking_id[0] : d.picking_id;
             const pk  = pid ? pickingById[pid] : null;
+            // Prefer repair_id field; fall back to origin string match (Odoo sets origin = repair name)
+            let rid   = pk && pk.repair_id ? OdooRPC.m2oId(pk.repair_id)   : null;
+            let rname = pk && pk.repair_id ? OdooRPC.m2oName(pk.repair_id) : null;
+            if (!rid && pk && pk.origin && pk.origin === repair._name) {
+              rid   = repair.id;
+              rname = repair._name;
+            }
             return {
               ...d,
               picking_name: pk ? pk.name : (Array.isArray(d.picking_id) ? d.picking_id[1] : ""),
-              repair_id:    pk && pk.repair_id ? OdooRPC.m2oId(pk.repair_id)   : null,
-              repair_name:  pk && pk.repair_id ? OdooRPC.m2oName(pk.repair_id) : null,
+              repair_id:    rid,
+              repair_name:  rname,
             };
           });
         }
