@@ -890,10 +890,13 @@ const Validator = (() => {
     // CHS repairs must NOT have a linked quotation — CHS is fully covered under warranty.
     // If an SO exists it was created before validation was live and must be cancelled.
     if (hasChs && effectiveSoId && state !== "draft") {
-      const soName = repair._effective_so ? repair._effective_so.name : effectiveSoId;
-      const fromParent = repair._effective_so && repair._effective_so._from_parent ? " (inherited from parent repair)" : "";
-      err("error", "coverage",
-        `CHS repair has a linked Quotation/Sales Order (${soName}${fromParent}) — CHS is covered under warranty and requires no quotation; cancel or remove the linked SO`);
+      const effectiveSoCancelled = repair._effective_so && repair._effective_so.state === "cancel";
+      if (!effectiveSoCancelled) {
+        const soName = repair._effective_so ? repair._effective_so.name : effectiveSoId;
+        const fromParent = repair._effective_so && repair._effective_so._from_parent ? " (inherited from parent repair)" : "";
+        err("error", "coverage",
+          `CHS repair has a linked Quotation/Sales Order (${soName}${fromParent}) — CHS is covered under warranty and requires no quotation; cancel or remove the linked SO`);
+      }
     }
 
     // ESDP coverage requires a linked quotation (unless resolution is "no repair required")
