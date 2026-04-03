@@ -198,11 +198,24 @@
         : "All Checks Passed";
 
     // Ticket info
+    const deliveries = data.delivery_history || [];
+    const returns    = data.return_history   || [];
+
+    function fmtHistDate(rawDate) {
+      if (!rawDate) return "";
+      try { return new Date(rawDate.replace(" ", "T")).toLocaleDateString(); } catch { return rawDate; }
+    }
+
     let ticketHtml = "";
     if (data.ticket_name || data.ticket_stage) {
       ticketHtml = `<div class="ocps-ticket">`;
       if (data.ticket_name) ticketHtml += `<span>🎫 Ticket: <strong>${esc(data.ticket_name)}</strong></span>`;
       if (data.ticket_stage) ticketHtml += `<span>Stage: <strong>${esc(data.ticket_stage)}</strong></span>`;
+      if (deliveries.length > 0) {
+        const lastDelivery = deliveries[0];
+        const pickRef = lastDelivery.picking_id ? esc(Array.isArray(lastDelivery.picking_id) ? lastDelivery.picking_id[1] : lastDelivery.picking_id) : "";
+        ticketHtml += `<span class="ocps-last-delivery">📦 Last delivered: <strong>${fmtHistDate(lastDelivery.date)}</strong>${pickRef ? ` <span class="ocps-pick-ref">(${pickRef})</span>` : ""}</span>`;
+      }
       ticketHtml += `</div>`;
     }
 
@@ -258,6 +271,28 @@
     if (errorCount > 0 || warnCount > 0) panel.classList.remove("ocps-collapsed");
     else panel.classList.add("ocps-collapsed");
 
+    // Device History section — show when there is any delivery/return move, or repair is done
+    let historyHtml = "";
+    if (deliveries.length > 0 || returns.length > 0 || data.state === "done") {
+      let histBody = "";
+      if (deliveries.length > 0) {
+        const last = deliveries[0];
+        const pickRef = last.picking_id ? (Array.isArray(last.picking_id) ? last.picking_id[1] : last.picking_id) : "";
+        histBody += `<div class="ocps-history-item ocps-hist-ok">✅ Delivered to customer ${deliveries.length}× — last: ${fmtHistDate(last.date)}${pickRef ? ` <span class="ocps-pick-ref">(${esc(pickRef)})</span>` : ""}</div>`;
+      } else if (data.state === "done") {
+        histBody += `<div class="ocps-history-item ocps-hist-pending">⏳ Not yet delivered to customer after this repair</div>`;
+      }
+      if (returns.length > 0) {
+        const last = returns[0];
+        const pickRef = last.picking_id ? (Array.isArray(last.picking_id) ? last.picking_id[1] : last.picking_id) : "";
+        histBody += `<div class="ocps-history-item ocps-hist-return">↩️ Returned from customer ${returns.length}× — last: ${fmtHistDate(last.date)}${pickRef ? ` <span class="ocps-pick-ref">(${esc(pickRef)})</span>` : ""}</div>`;
+      }
+      historyHtml = `<div class="ocps-history-section ocps-hist-collapsed">
+        <div class="ocps-history-header">📦 Device History <span class="ocps-hist-arrow">▸</span></div>
+        <div class="ocps-history-body">${histBody}</div>
+      </div>`;
+    }
+
     panel.innerHTML = `
       <div class="ocps-summary">
         <span class="ocps-status-badge">${statusIcon} ${statusText}</span>
@@ -272,6 +307,7 @@
         ${partsHtml}
         ${issuesHtml}
         ${partsDetailHtml}
+        ${historyHtml}
       </div>`;
 
     panel.querySelector(".ocps-summary").onclick = (e) => {
@@ -294,6 +330,18 @@
       const rid = getRepairIdFromUrl();
       if (rid) runValidation(rid);
     };
+
+    // Wire history toggle
+    const histHeader = panel.querySelector(".ocps-history-header");
+    if (histHeader) {
+      histHeader.onclick = () => {
+        const section = histHeader.closest(".ocps-history-section");
+        if (!section) return;
+        section.classList.toggle("ocps-hist-collapsed");
+        const arrow = section.querySelector(".ocps-hist-arrow");
+        if (arrow) arrow.textContent = section.classList.contains("ocps-hist-collapsed") ? "▸" : "▾";
+      };
+    }
 
     // Hide/show End Repair button based on errors
     setEndRepairHidden(errorCount > 0, errorCount);

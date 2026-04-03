@@ -270,6 +270,35 @@ const Validator = (() => {
       } catch (_) { /* leave empty */ }
     }
 
+    // Delivery & return history — query stock.move.line by lot_id to find all customer deliveries.
+    // location_dest_id.usage = "customer" → device went TO the customer (delivery / pickup)
+    // location_id.usage = "customer"      → device came BACK from the customer (return / receipt)
+    // Both queries run in parallel and default to [] on any error.
+    repair._delivery_history = [];
+    repair._return_history   = [];
+    if (lotId) {
+      try {
+        const [deliveries, returns] = await Promise.all([
+          OdooRPC.searchRead(
+            "stock.move.line",
+            [["lot_id", "=", lotId], ["state", "=", "done"],
+             ["location_dest_id.usage", "=", "customer"]],
+            ["id", "date", "picking_id"],
+            { order: "date desc", limit: 10 }
+          ),
+          OdooRPC.searchRead(
+            "stock.move.line",
+            [["lot_id", "=", lotId], ["state", "=", "done"],
+             ["location_id.usage", "=", "customer"]],
+            ["id", "date", "picking_id"],
+            { order: "date desc", limit: 10 }
+          ),
+        ]);
+        repair._delivery_history = deliveries || [];
+        repair._return_history   = returns   || [];
+      } catch (_) { /* leave empty — history is informational only */ }
+    }
+
     // Coverage type — read from DOM first (already rendered, avoids auxiliary model permission issues)
     repair._coverage_type = "";
     const covDom = readDomTags("coverage_type_id");
@@ -953,6 +982,8 @@ const Validator = (() => {
       family_size: repair._family.length || 1,
       parent_repair_id: repair._parent_id || null,
       parts: repair._parts,
+      delivery_history: repair._delivery_history || [],
+      return_history:   repair._return_history   || [],
       errors,
       error_count: errorCount,
       warning_count: warningCount,
