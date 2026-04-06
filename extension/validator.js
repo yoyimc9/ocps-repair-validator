@@ -795,7 +795,7 @@ const Validator = (() => {
     //   2. done — only while device is still at WH/Stock/OSC-Imaging (repair was ended
     //      without the tag; once the device leaves imaging the check is no longer relevant).
     // Exempt: BER-tagged repairs, BER-approved for dismantle, or SO flagged as BER.
-    const isBerRepair = hasBerTag || isDismantleTag || !!(effectiveSo && effectiveSo._is_ber);
+    const isBerRepair = hasBerTag || isDismantleTag || !!(repair._effective_so && repair._effective_so._is_ber);
     if (!isBerRepair) {
       const hasImagingTag = tags.includes("transferred to imaging");
       const isAtImaging   = (repair._device_location || "").toLowerCase().includes("osc-imaging");
