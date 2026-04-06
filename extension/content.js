@@ -32,13 +32,16 @@
   function getRepairIdFromUrl() {
     const path = window.location.pathname;
     if (!path.includes("/repairs/")) return null;
-    // Return null unless the path ends with a numeric segment (a specific form record).
-    // /odoo/repairs/2076                  → 2076  (parent repair form)
-    // /odoo/repairs/2076/repair.order     → null  (rework list — no specific record)
-    // /odoo/repairs/2076/repair.order/5678 → 5678 (child/rework repair form)
+    // Return null unless the path ends with a numeric segment (a specific form record)
+    // AND that segment belongs to a repair record (not a nested sale.order, picking, etc.).
+    // /odoo/repairs/2076                   → 2076  (parent repair form)
+    // /odoo/repairs/2076/repair.order/5678 → 5678  (child/rework repair form)
+    // /odoo/repairs/1097/sale.order/1      → null  (SO sub-view — not a repair form)
     const segments = path.split("/").filter(Boolean);
     const lastSeg = segments[segments.length - 1];
     if (!/^\d+$/.test(lastSeg)) return null;
+    const parentSeg = segments[segments.length - 2] || "";
+    if (parentSeg !== "repairs" && parentSeg !== "repair.order") return null;
     return parseInt(lastSeg, 10);
   }
 
