@@ -789,6 +789,23 @@ const Validator = (() => {
       err("warning", "workflow", "Tag 'Waiting on Replacement Device' still set on Done repair — remove tag after replacement received");
     }
 
+    // 'Transferred to Imaging' tag is required on all non-BER repairs.
+    // Active in two windows:
+    //   1. under_repair — must be added before ending the repair.
+    //   2. done — only while device is still at WH/Stock/OSC-Imaging (repair was ended
+    //      without the tag; once the device leaves imaging the check is no longer relevant).
+    // Exempt: BER-tagged repairs, BER-approved for dismantle, or SO flagged as BER.
+    const isBerRepair = hasBerTag || isDismantleTag || !!(effectiveSo && effectiveSo._is_ber);
+    if (!isBerRepair) {
+      const hasImagingTag = tags.includes("transferred to imaging");
+      const isAtImaging   = (repair._device_location || "").toLowerCase().includes("osc-imaging");
+      if (state === "under_repair" && !hasImagingTag) {
+        err("error", "workflow", "Tag 'Transferred to Imaging' is required — add the tag before ending the repair");
+      } else if (state === "done" && !hasImagingTag && isAtImaging) {
+        err("error", "workflow", "Repair was ended without the 'Transferred to Imaging' tag and device is still at imaging — add the tag to complete the workflow");
+      }
+    }
+
     /* ── Tier 3: State-specific field requirements ──────────────── */
 
     if (state === "confirmed" && !repair._assessment_name) {
