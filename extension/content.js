@@ -16,7 +16,6 @@
   window.__ocpsInit = true;
 
   const PANEL_ID = "ocps-validator-panel";
-  const POLL_INTERVAL = 1000;
   const DEBOUNCE_MS = 1200;
   const RPC_REVALIDATE_DEBOUNCE_MS = 2500;
   const DOM_REVALIDATE_DEBOUNCE_MS = 1500; // live revalidation after form DOM changes
@@ -25,6 +24,8 @@
   let debounceTimer = null;
   let rpcDebounceTimer = null;
   let domDebounceTimer = null;
+  let bodyObserverTimer = null;  // debounce handle for body MutationObserver
+  let lastUiControlsApply = 0;  // throttle timestamp for applyUiControls() in body observer
   let formObserver = null;
 
   /* ── Helpers ─────────────────────────────────────────────────────── */
@@ -576,19 +577,32 @@
     window.fetch.__ocpsPatched = true;
   }
 
-  // MutationObserver to catch Odoo's internal navigation
-  const observer = new MutationObserver(() => {
-    checkForRepairPage();
-    // Re-enforce End Repair visibility after DOM mutations
-    if (currentRepairId) {
-      const panel = document.getElementById(PANEL_ID);
-      if (panel && panel.classList.contains("ocps-error")) {
-        const errCount = panel.querySelectorAll(".ocps-issue-err").length;
-        if (errCount > 0) setEndRepairHidden(true, errCount);
+  // MutationObserver to catch Odoo's internal navigation (e.g. SPA route changes, button
+  // reinsertion after statusbar re-render). Debounced to 150ms to avoid running on every
+  // individual DOM mutation — Odoo generates hundreds per second during renders.
+  const observer = new MutationObserver((mutations) => {
+    // Skip if all mutations are inside our own panel (avoid feedback loop).
+    const panel = document.getElementById(PANEL_ID);
+    if (panel && mutations.every(m => panel === m.target || panel.contains(m.target))) return;
+
+    clearTimeout(bodyObserverTimer);
+    bodyObserverTimer = setTimeout(() => {
+      bodyObserverTimer = null;
+      checkForRepairPage();
+      if (currentRepairId) {
+        // Re-enforce End Repair button visibility (Odoo re-renders the statusbar on tab switches etc.)
+        const p = document.getElementById(PANEL_ID);
+        if (p) {
+          const errCount = p.querySelectorAll(".ocps-issue-err").length;
+          setEndRepairHidden(errCount > 0, errCount);
+        }
+        // Re-apply admin UI controls — throttled to at most once per 500ms
+        if (Date.now() - lastUiControlsApply > 500) {
+          lastUiControlsApply = Date.now();
+          applyUiControls();
+        }
       }
-      // Re-apply admin UI controls after Odoo re-renders parts of the page
-      applyUiControls();
-    }
+    }, 150);
   });
 
   /* ── Announcements & Blocked Serials ────────────────────────── */
@@ -847,7 +861,7 @@
   function init() {
     checkForRepairPage();
     observer.observe(document.body, { childList: true, subtree: true });
-    setInterval(checkForRepairPage, POLL_INTERVAL);
+    // No setInterval for checkForRepairPage — Navigation API + history patch + popstate cover all SPA navigations.
     // Announcements: check on load and every minute
     checkAnnouncements();
     setInterval(checkAnnouncements, ANNOUNCE_INTERVAL);
