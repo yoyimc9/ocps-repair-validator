@@ -248,15 +248,18 @@ const Validator = (() => {
     repair._user_name = OdooRPC.m2oName(repair.user_id);
     repair._assessment_name = OdooRPC.m2oName(repair.assessment_responsible_id);
     // repair_resolution_ids is a Many2many — search_read returns only IDs.
-    // Dynamically discover the relation model via fields_get (cached after first call)
-    // so we're not hardcoding a model name that varies across Odoo deployments.
+    // Look up the comodel via ir.model.fields (Odoo's own metadata table — always reliable).
     repair._resolution = "";
     const resolutionIds = Array.isArray(repair.repair_resolution_ids) ? repair.repair_resolution_ids : [];
     if (resolutionIds.length) {
       try {
         if (!_resolutionModel) {
-          const fieldDefs = await OdooRPC.callKw("repair.order", "fields_get", [["repair_resolution_ids"]], { attributes: ["relation"] });
-          _resolutionModel = (fieldDefs.repair_resolution_ids || {}).relation || null;
+          const fieldMeta = await OdooRPC.searchRead(
+            "ir.model.fields",
+            [["model", "=", "repair.order"], ["name", "=", "repair_resolution_ids"]],
+            ["relation"]
+          );
+          _resolutionModel = fieldMeta.length ? (fieldMeta[0].relation || null) : null;
         }
         if (_resolutionModel) {
           const resRecs = await OdooRPC.searchRead(_resolutionModel, [["id", "in", resolutionIds]], ["id", "name"]);
