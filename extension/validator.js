@@ -794,9 +794,11 @@ const Validator = (() => {
     //   1. under_repair — must be added before ending the repair.
     //   2. done — only while device is still at WH/Stock/OSC-Imaging (repair was ended
     //      without the tag; once the device leaves imaging the check is no longer relevant).
-    // Exempt: BER-tagged repairs, BER-approved for dismantle, or SO flagged as BER.
+    // Exempt: BER-tagged repairs, BER-approved for dismantle, SO flagged as BER,
+    //         "Return to Customer" tag, or "No Repair Required" resolution —
+    //         device never went to imaging, it is being returned as-is.
     const isBerRepair = hasBerTag || isDismantleTag || !!(repair._effective_so && repair._effective_so._is_ber);
-    if (!isBerRepair) {
+    if (!isBerRepair && !isRtcTag && !isNoRepair) {
       const hasImagingTag = tags.includes("transferred to imaging");
       const isAtImaging   = (repair._device_location || "").toLowerCase().includes("osc-imaging");
       if (state === "under_repair" && !hasImagingTag) {
