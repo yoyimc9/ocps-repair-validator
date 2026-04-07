@@ -205,7 +205,7 @@ const Validator = (() => {
   const REPAIR_BASE_FIELDS = [
     "id", "name", "state", "partner_id", "product_id", "lot_id",
     "user_id", "assessment_responsible_id", "coverage_type_id",
-    "repair_resolution_id", "schedule_date", "write_date", "create_date",
+    "repair_resolution_ids", "schedule_date", "write_date", "create_date",
     "move_ids", "internal_notes", "sale_order_id", "is_rework", "parent_repair_id",
   ];
 
@@ -245,7 +245,20 @@ const Validator = (() => {
     repair._product_id = OdooRPC.m2oId(repair.product_id);
     repair._user_name = OdooRPC.m2oName(repair.user_id);
     repair._assessment_name = OdooRPC.m2oName(repair.assessment_responsible_id);
-    repair._resolution = OdooRPC.m2oName(repair.repair_resolution_id);
+    // repair_resolution_ids is a Many2many — search_read returns only IDs.
+    // Batch-fetch the names so validation checks can match on text.
+    repair._resolution = "";
+    const resolutionIds = Array.isArray(repair.repair_resolution_ids) ? repair.repair_resolution_ids : [];
+    if (resolutionIds.length) {
+      try {
+        const resRecs = await OdooRPC.searchRead(
+          "repair.resolution",
+          [["id", "in", resolutionIds]],
+          ["id", "name"]
+        );
+        repair._resolution = resRecs.map(r => r.name).join(", ");
+      } catch (_) { /* field may not exist on all Odoo versions */ }
+    }
     repair._so_id = OdooRPC.m2oId(repair.sale_order_id);
     repair._is_rework = repair.is_rework || false;
     repair._parent_id = OdooRPC.m2oId(repair.parent_repair_id);
