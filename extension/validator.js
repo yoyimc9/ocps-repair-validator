@@ -201,6 +201,8 @@ const Validator = (() => {
     });
   }
 
+  // Cache for dynamically-discovered Many2many relation models (populated on first use).
+  let _resolutionModel = null;
 
   const REPAIR_BASE_FIELDS = [
     "id", "name", "state", "partner_id", "product_id", "lot_id",
@@ -246,18 +248,21 @@ const Validator = (() => {
     repair._user_name = OdooRPC.m2oName(repair.user_id);
     repair._assessment_name = OdooRPC.m2oName(repair.assessment_responsible_id);
     // repair_resolution_ids is a Many2many — search_read returns only IDs.
-    // Batch-fetch the names so validation checks can match on text.
+    // Dynamically discover the relation model via fields_get (cached after first call)
+    // so we're not hardcoding a model name that varies across Odoo deployments.
     repair._resolution = "";
     const resolutionIds = Array.isArray(repair.repair_resolution_ids) ? repair.repair_resolution_ids : [];
     if (resolutionIds.length) {
       try {
-        const resRecs = await OdooRPC.searchRead(
-          "repair.resolution",
-          [["id", "in", resolutionIds]],
-          ["id", "name"]
-        );
-        repair._resolution = resRecs.map(r => r.name).join(", ");
-      } catch (_) { /* field may not exist on all Odoo versions */ }
+        if (!_resolutionModel) {
+          const fieldDefs = await OdooRPC.callKw("repair.order", "fields_get", [["repair_resolution_ids"]], { attributes: ["relation"] });
+          _resolutionModel = (fieldDefs.repair_resolution_ids || {}).relation || null;
+        }
+        if (_resolutionModel) {
+          const resRecs = await OdooRPC.searchRead(_resolutionModel, [["id", "in", resolutionIds]], ["id", "name"]);
+          repair._resolution = resRecs.map(r => r.name).join(", ");
+        }
+      } catch (_) { /* resolution model unavailable — skip */ }
     }
     repair._so_id = OdooRPC.m2oId(repair.sale_order_id);
     repair._is_rework = repair.is_rework || false;
