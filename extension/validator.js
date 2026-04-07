@@ -134,6 +134,16 @@ const Validator = (() => {
       }
     }
 
+    // resolution field
+    let resolutionField = null;
+    for (const [fname, fmeta] of Object.entries(repairInfo)) {
+      if ((fmeta.string || "").toLowerCase().includes("resolution") &&
+          ["many2many", "one2many"].includes(fmeta.type)) {
+        resolutionField = fname;
+        break;
+      }
+    }
+
     // ticket field
     let ticketField = null;
     for (const [fname, fmeta] of Object.entries(repairInfo)) {
@@ -158,7 +168,7 @@ const Validator = (() => {
       }
     } catch (_) { /* sale.order may not exist */ }
 
-    _schemaCache = { repairInfo, opsField, lineModel, moveInfo, tagField, ticketField, soBerField };
+    _schemaCache = { repairInfo, opsField, lineModel, moveInfo, tagField, resolutionField, ticketField, soBerField };
     return _schemaCache;
   }
 
@@ -201,13 +211,10 @@ const Validator = (() => {
     });
   }
 
-  // Cache for dynamically-discovered Many2many relation models (populated on first use).
-  let _resolutionModel = null;
-
   const REPAIR_BASE_FIELDS = [
     "id", "name", "state", "partner_id", "product_id", "lot_id",
     "user_id", "assessment_responsible_id", "coverage_type_id",
-    "repair_resolution_ids", "schedule_date", "write_date", "create_date",
+    "schedule_date", "write_date", "create_date",
     "move_ids", "internal_notes", "sale_order_id", "is_rework", "parent_repair_id",
   ];
 
@@ -230,6 +237,7 @@ const Validator = (() => {
     // Build repair field list
     const rFields = [...REPAIR_BASE_FIELDS];
     if (schema.tagField && !rFields.includes(schema.tagField)) rFields.push(schema.tagField);
+    if (schema.resolutionField && !rFields.includes(schema.resolutionField)) rFields.push(schema.resolutionField);
     if (schema.ticketField && !rFields.includes(schema.ticketField)) rFields.push(schema.ticketField);
     // Filter to only existing fields
     const validRFields = rFields.filter(f => f in schema.repairInfo);
@@ -247,25 +255,25 @@ const Validator = (() => {
     repair._product_id = OdooRPC.m2oId(repair.product_id);
     repair._user_name = OdooRPC.m2oName(repair.user_id);
     repair._assessment_name = OdooRPC.m2oName(repair.assessment_responsible_id);
-    // repair_resolution_ids is a Many2many — search_read returns only IDs.
-    // Look up the comodel via ir.model.fields (Odoo's own metadata table — always reliable).
+    // Resolution — Many2many field. Read from DOM first (same approach as tags —
+    // avoids needing RPC access to the comodel). Fall back to API using schema comodel.
     repair._resolution = "";
-    const resolutionIds = Array.isArray(repair.repair_resolution_ids) ? repair.repair_resolution_ids : [];
-    if (resolutionIds.length) {
-      try {
-        if (!_resolutionModel) {
-          const fieldMeta = await OdooRPC.searchRead(
-            "ir.model.fields",
-            [["model", "=", "repair.order"], ["name", "=", "repair_resolution_ids"]],
-            ["relation"]
-          );
-          _resolutionModel = fieldMeta.length ? (fieldMeta[0].relation || null) : null;
+    if (schema.resolutionField) {
+      const domResolutions = readDomTags(schema.resolutionField);
+      if (domResolutions && domResolutions.length) {
+        repair._resolution = domResolutions.join(", ");
+      } else {
+        const resolutionIds = Array.isArray(repair[schema.resolutionField]) ? repair[schema.resolutionField] : [];
+        if (resolutionIds.length) {
+          try {
+            const resModel = (schema.repairInfo[schema.resolutionField] || {}).relation || null;
+            if (resModel) {
+              const resRecs = await OdooRPC.searchRead(resModel, [["id", "in", resolutionIds]], ["id", "name"]);
+              repair._resolution = resRecs.map(r => r.name).join(", ");
+            }
+          } catch (_) { /* skip */ }
         }
-        if (_resolutionModel) {
-          const resRecs = await OdooRPC.searchRead(_resolutionModel, [["id", "in", resolutionIds]], ["id", "name"]);
-          repair._resolution = resRecs.map(r => r.name).join(", ");
-        }
-      } catch (_) { /* resolution model unavailable — skip */ }
+      }
     }
     repair._so_id = OdooRPC.m2oId(repair.sale_order_id);
     repair._is_rework = repair.is_rework || false;
