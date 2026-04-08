@@ -1,10 +1,10 @@
-﻿/* OCPS Repair Validator - Content Script Styles */
+﻿/* OCPS Repair Validator - Stili Content Script */
 
-/* -- UI Controls (admin-toggled hide/disable) --------------------------- */
+/* -- Controlli UI (nascondi/disabilita da admin) --------------------------- */
 .ocps-ui-hidden  { display: none !important; }
 .ocps-ui-disabled { opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
 
-/* -- Announcement Modal: Windows 98 Style ------------------------------ */
+/* -- Modale Annuncio: Stile Windows 98 ------------------------------ */
 #ocps-announce-modal,
 #ocps-blocked-modal,
 #ocps-message-modal {
@@ -126,7 +126,7 @@
   padding-left: 25px;
 }
 
-/* -- Banner: injected between control panel and form sheet ------------- */
+/* -- Banner: iniettato tra pannello di controllo e scheda form ------------- */
 #ocps-validator-panel {
   width: 100%;
   font-family: inherit;
@@ -144,7 +144,7 @@
 #ocps-validator-panel.ocps-clean   { border-left-color: #22c55e; background: rgba(34,197,94,.07); }
 #ocps-validator-panel.ocps-loading { border-left-color: #3b82f6; background: rgba(59,130,246,.07); }
 
-/* -- Summary row always visible --------------------------------------- */
+/* -- Riga riepilogo sempre visibile --------------------------------------- */
 .ocps-summary {
   display: flex;
   align-items: center;
@@ -194,7 +194,7 @@
 }
 .ocps-btn-icon:hover { opacity: 1; }
 
-/* -- Detail body (hidden when collapsed) ------------------------------ */
+/* -- Corpo dettagli (nascosto quando compresso) ------------------------------ */
 .ocps-body {
   margin-top: 8px;
   padding-top: 8px;
@@ -202,7 +202,7 @@
 }
 .ocps-collapsed .ocps-body { display: none; }
 
-/* -- Ticket row ------------------------------------------------------- */
+/* -- Riga ticket ------------------------------------------------------- */
 .ocps-ticket {
   display: flex;
   flex-wrap: wrap;
@@ -213,7 +213,7 @@
 }
 .ocps-ticket strong { color: #60a5fa; opacity: 1; }
 
-/* -- Parts summary ---------------------------------------------------- */
+/* -- Riepilogo parti ---------------------------------------------------- */
 .ocps-parts-summary {
   display: flex;
   align-items: center;
@@ -228,7 +228,7 @@
 .ocps-oow { background: rgba(245,158,11,.2); color: #fbbf24; }
 .ocps-ber { background: rgba(239,68,68,.2);  color: #f87171; }
 
-/* -- Issues list ------------------------------------------------------ */
+/* -- Lista problemi ------------------------------------------------------ */
 .ocps-issues { list-style: none; padding: 0; margin: 0 0 4px 0; }
 
 .ocps-issues li {
@@ -255,7 +255,7 @@
   margin-top: 2px;
 }
 
-/* -- Unconsumed parts ------------------------------------------------- */
+/* -- Parti non consumate ------------------------------------------------- */
 .ocps-parts-detail {
   margin-top: 6px;
   padding: 6px 10px;
@@ -268,7 +268,7 @@
 .ocps-parts-detail ul { margin: 3px 0 0 14px; padding: 0; }
 .ocps-parts-detail li { margin-bottom: 2px; }
 
-/* -- Error state ------------------------------------------------------ */
+/* -- Stato errore ------------------------------------------------------ */
 .ocps-err-msg { color: #f87171; font-size: 12px; margin-bottom: 8px; }
 .ocps-retry-btn {
   background: rgba(59,130,246,.15);
@@ -293,7 +293,7 @@
 }
 @keyframes ocps-spin { to { transform: rotate(360deg); } }
 
-/* -- End Repair blocked message --------------------------------------- */
+/* -- Messaggio End Repair bloccato --------------------------------------- */
 .ocps-blocked-msg {
   display: inline-flex !important;
   align-items: center;
@@ -307,7 +307,7 @@
   border-radius: 4px;
 }
 
-/* -- Device History section ------------------------------------------ */
+/* -- Sezione Storico Dispositivo ------------------------------------------ */
 .ocps-history-section {
   margin-top: 8px;
   border-left: 3px solid rgba(96,165,250,.4);
@@ -350,12 +350,12 @@
 .ocps-hist-pending { background: rgba(245,158,11,.1); color: #fbbf24; }
 .ocps-hist-return  { background: rgba(139,92,246,.1); color: #a78bfa; }
 
-/* -- Ticket last-delivery inline span ---------------------------------- */
+/* -- Ultima consegna ticket inline ---------------------------------- */
 .ocps-last-delivery { color: #60a5fa; }
 .ocps-last-delivery strong { color: #93c5fd; }
 .ocps-pick-ref { opacity: 0.65; font-size: 11px; }
 
-/* -- Delivery badges (summary bar + history section) ------------------- */
+/* -- Badge consegna (barra riepilogo + sezione storico) ------------------- */
 .ocps-meta-delivered { color: #4ade80; font-weight: 600; }
 .ocps-prev-repair { color: #fbbf24; }
 .ocps-hist-prior { background: rgba(251,191,36,.1); color: #fbbf24; }

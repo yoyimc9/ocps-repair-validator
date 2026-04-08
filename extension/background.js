@@ -1,20 +1,20 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   background.js — MV3 service worker: auto-reloads the unpacked extension
-   when extension files change on disk.
+   background.js — Service worker MV3: ricarica automaticamente l'estensione
+   non impacchettata quando i file cambiano su disco.
 
-   Polls GET /api/extension/version (local server, returns MD5 of all files
-   under extension/) every 60 seconds via a chrome.alarms periodic alarm.
-   When the hash differs from the stored baseline, calls chrome.runtime.reload()
-   so Chrome re-reads all script/CSS/manifest files from disk immediately.
+   Interroga GET /api/extension/version (server locale, restituisce MD5 di tutti
+   i file sotto extension/) ogni 60 secondi tramite un allarme periodico chrome.alarms.
+   Quando l'hash differisce dalla baseline memorizzata, chiama chrome.runtime.reload()
+   così Chrome rilegge tutti i file script/CSS/manifest dal disco immediatamente.
    ═══════════════════════════════════════════════════════════════════════ */
 
 const VERSION_URL = "http://10.56.65.139:3131/api/extension/version";
 const POLL_ALARM  = "ocps-version-check";
 const HASH_KEY    = "ocps_ext_hash";
 
-// Ensure the alarm is registered whenever the service worker starts.
-// Chrome may terminate and restart the SW at any time; recreating the alarm
-// here guarantees polling continues across those restarts.
+// Assicura che l'allarme sia registrato ogni volta che il service worker parte.
+// Chrome può terminare e riavviare il SW in qualsiasi momento; ricreare l'allarme
+// qui garantisce che il polling continui attraverso quei riavvii.
 chrome.alarms.get(POLL_ALARM, (existing) => {
   if (!existing) chrome.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
 });
@@ -28,14 +28,14 @@ async function checkVersion() {
     serverHash = data.hash;
     if (!serverHash) return;
   } catch {
-    return; // server not reachable — skip silently, don't break anything
+    return; // server non raggiungibile — salta silenziosamente, non rompere nulla
   }
 
   const stored = await chrome.storage.local.get(HASH_KEY);
   const knownHash = stored[HASH_KEY];
 
   if (!knownHash) {
-    // First run after install/enable — record the current hash as the baseline.
+    // Prima esecuzione dopo installazione/abilitazione — registra l'hash corrente come baseline.
     await chrome.storage.local.set({ [HASH_KEY]: serverHash });
     console.log("[OCPS] Version baseline stored:", serverHash.slice(0, 8));
     return;
@@ -44,8 +44,8 @@ async function checkVersion() {
   if (serverHash !== knownHash) {
     console.log("[OCPS] Extension files changed — reloading...", knownHash.slice(0, 8), "→", serverHash.slice(0, 8));
     await chrome.storage.local.set({ [HASH_KEY]: serverHash });
-    // Reload all open Odoo tabs so new content scripts take effect immediately.
-    // chrome.runtime.reload() alone does NOT re-inject content scripts into existing tabs.
+    // Ricarica tutte le tab Odoo aperte così i nuovi content script hanno effetto subito.
+    // chrome.runtime.reload() da solo NON re-inietta i content script nelle tab esistenti.
     try {
       const tabs = await chrome.tabs.query({ url: "*://*.odoo.com/*" });
       for (const tab of tabs) { chrome.tabs.reload(tab.id); }
@@ -54,17 +54,17 @@ async function checkVersion() {
   }
 }
 
-// Check immediately on service worker startup (covers manual "Reload" clicks in chrome://extensions).
+// Controlla subito all'avvio del service worker (copre i click "Ricarica" manuali in chrome://extensions).
 checkVersion();
 
-// Check on every alarm tick (every 60 s).
+// Controlla ad ogni tick dell'allarme (ogni 60 s).
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL_ALARM) checkVersion();
 });
 
-// Inject content scripts into already-open Odoo tabs that missed the initial injection.
-// Covers: fresh extension install, manual reload in chrome://extensions, Chrome restart.
-// The __ocpsInit flag on the page prevents double-injection (and const re-declaration errors).
+// Inietta i content script nelle tab Odoo già aperte che hanno perso l'iniezione iniziale.
+// Copre: installazione fresca dell'estensione, ricarica manuale in chrome://extensions, riavvio Chrome.
+// Il flag __ocpsInit sulla pagina previene doppia iniezione (ed errori di ri-dichiarazione const).
 async function injectIntoExistingTabs() {
   try {
     const tabs = await chrome.tabs.query({ url: "*://*.odoo.com/*" });

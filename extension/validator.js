@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   validator.js — Standalone repair validation engine.
-   Fetches all needed data from Odoo via JSON-RPC and runs every
-   validation rule that the Python sync_engine applies.
+   validator.js — Motore di validazione riparazioni standalone.
+   Recupera tutti i dati necessari da Odoo tramite JSON-RPC ed esegue
+   tutte le regole di validazione previste da sync_engine.py.
    ═══════════════════════════════════════════════════════════════════════ */
 
 // eslint-disable-next-line no-unused-vars
@@ -9,7 +9,7 @@ const Validator = (() => {
   "use strict";
 
   /* ────────────────────────────────────────────────────────────────── *
-   *  TAG CONSTANTS (mirrors sync_engine.py)
+   *  COSTANTI TAG (specchia sync_engine.py)
    * ────────────────────────────────────────────────────────────────── */
 
   const HOLD_REQUIRED_TAGS = {
@@ -74,33 +74,33 @@ const Validator = (() => {
     "ber-parts requested", "ber-part(s) requested",
   ]);
 
-  /** OOW cost (family-wide, USD) that triggers BER workflow — mirrors Odoo config. */
+  /** Costo OOW (a livello famiglia, USD) che attiva il flusso BER — specchia config Odoo. */
   const BER_THRESHOLD = 250;
 
   /* ────────────────────────────────────────────────────────────────── *
-   *  WARRANTY CLASSIFICATION
+   *  CLASSIFICAZIONE GARANZIA
    * ────────────────────────────────────────────────────────────────── */
 
   function classifyWarranty(productName, productCode, repairLineType, categName) {
-    // Step 1: repair_line_type
+    // Passo 1: repair_line_type
     if (repairLineType) {
       const rlt = String(repairLineType).toLowerCase();
       if (rlt.includes("oow") || rlt.includes("out")) return "OOW";
       if (rlt.includes("ber") || rlt.includes("beyond")) return "BER";
       if (rlt.includes("iw") || rlt.includes("in_warranty") || rlt.includes("in warranty")) return "IW";
     }
-    // Step 2: product code/name for OOW/BER
+    // Passo 2: codice/nome prodotto per OOW/BER
     for (const text of [productCode || "", productName || ""]) {
       const up = text.toUpperCase();
       if (up.includes("-OOW") || up.includes(" OOW")) return "OOW";
       if (up.includes("-BER") || up.includes(" BER")) return "BER";
     }
-    // Step 3: IW suffix
+    // Passo 3: suffisso IW
     for (const text of [productCode || "", productName || ""]) {
       const up = text.trim().toUpperCase();
       if (up.endsWith(" IW") || up.endsWith("-IW")) return "IW";
     }
-    // Step 4: categ_name
+    // Passo 4: categ_name
     if (categName) {
       const cat = String(categName).toUpperCase();
       if (cat.includes("-OOW") || cat.includes(" OOW")) return "OOW";
@@ -111,7 +111,7 @@ const Validator = (() => {
   }
 
   /* ────────────────────────────────────────────────────────────────── *
-   *  SCHEMA DISCOVERY (run once, cached)
+   *  SCOPERTA SCHEMA (eseguito una volta, poi in cache)
    * ────────────────────────────────────────────────────────────────── */
 
   let _schemaCache = null;
@@ -120,11 +120,11 @@ const Validator = (() => {
     if (_schemaCache) return _schemaCache;
     const repairInfo = await OdooRPC.fieldsGet("repair.order");
 
-    // ops field / line model
+    // campo ops / modello riga
     const opsField = repairInfo["move_ids"] ? "move_ids" : null;
     const lineModel = opsField ? (repairInfo[opsField].relation || "stock.move") : "stock.move";
 
-    // tag field
+    // campo tag
     let tagField = null;
     for (const [fname, fmeta] of Object.entries(repairInfo)) {
       if ((fmeta.string || "").toLowerCase().includes("tag") &&
@@ -134,7 +134,7 @@ const Validator = (() => {
       }
     }
 
-    // resolution field
+    // campo risoluzione
     let resolutionField = null;
     for (const [fname, fmeta] of Object.entries(repairInfo)) {
       if ((fmeta.string || "").toLowerCase().includes("resolution") &&
@@ -144,7 +144,7 @@ const Validator = (() => {
       }
     }
 
-    // ticket field
+    // campo ticket
     let ticketField = null;
     for (const [fname, fmeta] of Object.entries(repairInfo)) {
       if (fmeta.type === "many2one" && (fmeta.relation || "").includes("helpdesk.ticket")) {
@@ -153,10 +153,10 @@ const Validator = (() => {
       }
     }
 
-    // line model schema
+    // schema modello riga
     const moveInfo = await OdooRPC.fieldsGet(lineModel);
 
-    // sale.order BER field
+    // campo BER sale.order
     let soBerField = null;
     try {
       const soInfo = await OdooRPC.fieldsGet("sale.order");
@@ -173,34 +173,34 @@ const Validator = (() => {
   }
 
   /* ────────────────────────────────────────────────────────────────── *
-   *  DOM READERS
-   *  Content script runs on the Odoo page — read rendered values
-   *  directly from the DOM when possible (avoids permission errors on
-   *  auxiliary models like udt.repair.coverage.type).
+   *  LETTORI DOM
+   *  Il content script gira sulla pagina Odoo — legge i valori
+   *  renderizzati direttamente dal DOM quando possibile (evita errori
+   *  di permesso su modelli ausiliari come udt.repair.coverage.type).
    * ────────────────────────────────────────────────────────────────── */
 
   function readDomTags(fieldName) {
-    // Odoo renders many2many tag fields as .o_tag_badge_text inside [name="fieldname"]
+    // Odoo renderizza i campi tag many2many come .o_tag_badge_text dentro [name="fieldname"]
     const els = document.querySelectorAll(`[name="${fieldName}"] .o_tag_badge_text`);
     if (els.length) return Array.from(els).map(el => el.textContent.trim()).filter(Boolean);
-    // Fallback: badges/pills
+    // Fallback: badge/pillole
     const badges = document.querySelectorAll(`[name="${fieldName}"] .badge`);
     if (badges.length) return Array.from(badges).map(el => el.textContent.trim()).filter(Boolean);
     return null;
   }
 
   function readDomField(fieldName) {
-    // Reads the text content of a rendered field
+    // Legge il contenuto testuale di un campo renderizzato
     const el = document.querySelector(`[name="${fieldName}"] .o_field_widget, [name="${fieldName}"]`);
     return el ? el.textContent.trim() || null : null;
   }
 
   function readDomPartsDone() {
-    // Reads the Done quantity for each row of the repair parts list, in DOM order.
-    // This is the only reliable source for done repairs: Odoo cancels/zeroes the
-    // stock.move quantity after repair completion, but the UI always shows the
-    // correct consumed qty (0.00 = not consumed by tech, 1.00 = properly consumed).
-    // Tries Odoo 17 field name ('quantity') then Odoo 16 ('qty_done').
+    // Legge la quantità Done per ogni riga della lista parti, nell'ordine del DOM.
+    // Questa è l'unica fonte affidabile per le riparazioni completate: Odoo cancella/azzera la
+    // quantità stock.move dopo il completamento, ma l'interfaccia mostra sempre il
+    // valore corretto (0.00 = non consumata dal tecnico, 1.00 = correttamente consumata).
+    // Prova prima il nome campo Odoo 17 ('quantity') poi Odoo 16 ('qty_done').
     const rows = document.querySelectorAll('[name="move_ids"] .o_data_row');
     if (!rows.length) return null;
     return Array.from(rows).map(row => {
@@ -223,7 +223,7 @@ const Validator = (() => {
     "name", "repair_line_type", "write_date", "price_unit",
   ];
 
-  // Optional fields that may exist
+  // Campi opzionali che potrebbero esistere
   const MOVE_OPT_FIELDS = [
     "problem_statement_id", "x_studio_problem_statement", "coverage_type_id",
     "qty_done",   // Odoo 16 name for done quantity (renamed to 'quantity' in Odoo 17)
@@ -234,19 +234,19 @@ const Validator = (() => {
   async function fetchRepair(repairId) {
     const schema = await discoverSchema();
 
-    // Build repair field list
+    // Costruisci lista campi riparazione
     const rFields = [...REPAIR_BASE_FIELDS];
     if (schema.tagField && !rFields.includes(schema.tagField)) rFields.push(schema.tagField);
     if (schema.resolutionField && !rFields.includes(schema.resolutionField)) rFields.push(schema.resolutionField);
     if (schema.ticketField && !rFields.includes(schema.ticketField)) rFields.push(schema.ticketField);
-    // Filter to only existing fields
+    // Filtra solo campi esistenti
     const validRFields = rFields.filter(f => f in schema.repairInfo);
 
     const repairs = await OdooRPC.searchRead("repair.order", [["id", "=", repairId]], validRFields);
     if (!repairs.length) return null;
     const repair = repairs[0];
 
-    // Resolve many2one display names
+    // Risolvi nomi visualizzazione many2one
     repair._name = repair.name;
     repair._state = repair.state;
     repair._lot_name = OdooRPC.m2oName(repair.lot_id);
@@ -255,8 +255,8 @@ const Validator = (() => {
     repair._product_id = OdooRPC.m2oId(repair.product_id);
     repair._user_name = OdooRPC.m2oName(repair.user_id);
     repair._assessment_name = OdooRPC.m2oName(repair.assessment_responsible_id);
-    // Resolution — Many2many field. Read from DOM first (same approach as tags —
-    // avoids needing RPC access to the comodel). Fall back to API using schema comodel.
+    // Risoluzione — campo Many2many. Legge prima dal DOM (stesso approccio dei tag —
+    // evita di aver bisogno di accesso RPC al comodel). Fallback all'API usando il comodel dello schema.
     repair._resolution = "";
     if (schema.resolutionField) {
       const domResolutions = readDomTags(schema.resolutionField);
@@ -279,7 +279,7 @@ const Validator = (() => {
     repair._is_rework = repair.is_rework || false;
     repair._parent_id = OdooRPC.m2oId(repair.parent_repair_id);
 
-    // Device location — query stock.quant by lot_id to find where the unit is right now
+    // Posizione dispositivo — interroga stock.quant per lot_id per trovare dove si trova l'unità ora
     repair._device_location = "";
     const lotId = OdooRPC.m2oId(repair.lot_id);
     if (lotId) {
@@ -299,10 +299,10 @@ const Validator = (() => {
       } catch (_) { /* leave empty */ }
     }
 
-    // Delivery & return history — query stock.move.line by lot_id to find all customer deliveries.
-    // location_dest_id.usage = "customer" → device went TO the customer (delivery / pickup)
-    // location_id.usage = "customer"      → device came BACK from the customer (return / receipt)
-    // Both queries run in parallel and default to [] on any error.
+    // Storico consegne e resi — interroga stock.move.line per lot_id per trovare tutte le consegne al cliente.
+    // location_dest_id.usage = "customer" → dispositivo andato AL cliente (consegna / ritiro)
+    // location_id.usage = "customer"      → dispositivo tornato DAL cliente (reso / ricezione)
+    // Entrambe le query girano in parallelo e hanno default [] su qualsiasi errore.
     repair._delivery_history = [];
     repair._return_history   = [];
     if (lotId) {
@@ -328,9 +328,9 @@ const Validator = (() => {
       } catch (_) { /* leave empty — history is informational only */ }
     }
 
-    // Enrich delivery entries with repair order data.
-    // Batch-fetch stock.picking for all deliveries to get picking name + linked repair order (WH/RO).
-    // Gracefully skipped if repair_id field is absent (older Odoo versions).
+    // Arricchisci le voci di consegna con dati dell'ordine di riparazione.
+    // Fetch massivo di stock.picking per tutte le consegne per ottenere nome picking + ordine di riparazione collegato (WH/RO).
+    // Saltato con grazia se il campo repair_id è assente (versioni Odoo più vecchie).
     if (repair._delivery_history.length) {
       try {
         const pickingIds = [...new Set(
@@ -349,7 +349,7 @@ const Validator = (() => {
           repair._delivery_history = repair._delivery_history.map(d => {
             const pid = Array.isArray(d.picking_id) ? d.picking_id[0] : d.picking_id;
             const pk  = pid ? pickingById[pid] : null;
-            // Prefer repair_id field; fall back to origin string match (Odoo sets origin = repair name)
+            // Preferisce campo repair_id; fallback su stringa origin (Odoo imposta origin = nome riparazione)
             let rid   = pk && pk.repair_id ? OdooRPC.m2oId(pk.repair_id)   : null;
             let rname = pk && pk.repair_id ? OdooRPC.m2oName(pk.repair_id) : null;
             if (!rid && pk && pk.origin && pk.origin === repair._name) {
@@ -367,7 +367,7 @@ const Validator = (() => {
       } catch (_) { /* repair_id absent in this Odoo version — skip enrichment */ }
     }
 
-    // Coverage type — read from DOM first (already rendered, avoids auxiliary model permission issues)
+    // Tipo copertura — legge prima dal DOM (già renderizzato, evita problemi di permesso su modelli ausiliari)
     repair._coverage_type = "";
     const covDom = readDomTags("coverage_type_id");
     if (covDom && covDom.length) {
@@ -392,7 +392,7 @@ const Validator = (() => {
 
     repair._is_esdp = repair._coverage_type.toLowerCase().includes("esdp");
 
-    // Tags — read from DOM first
+    // Tag — legge prima dal DOM
     repair._tags = [];
     const tagDom = schema.tagField ? readDomTags(schema.tagField) : null;
     if (tagDom && tagDom.length) {
@@ -432,7 +432,7 @@ const Validator = (() => {
       }
     }
 
-    // Parts (stock.move)
+    // Parti (stock.move)
     const moveIds = repair[schema.opsField] || repair.move_ids || [];
     repair._parts = [];
     if (moveIds.length) {
@@ -457,10 +457,10 @@ const Validator = (() => {
           warranty_type: wt,
           repair_line_type: rlt,
           demand: parseFloat(mv.product_uom_qty) || 0,
-          // qty_done (Odoo 16) or quantity (Odoo 17) — zeroed by Odoo after repair completion
+          // qty_done (Odoo 16) o quantity (Odoo 17) — azzerato da Odoo dopo il completamento
           done: parseFloat(mv.qty_done !== undefined ? mv.qty_done : mv.quantity) || 0,
-          // 'picked' (Odoo 17) / 'is_done' — the Used checkbox; stays True post-completion
-          // This is the most reliable consumed indicator when available
+          // 'picked' (Odoo 17) / 'is_done' — il checkbox Used; rimane True dopo il completamento
+          // Questo è l'indicatore di consumo più affidabile quando disponibile
           picked: mv.picked === true || mv.is_done === true,
           state: mv.state || "",
           price_unit: parseFloat(mv.price_unit) || 0,
@@ -470,11 +470,11 @@ const Validator = (() => {
       });
     }
 
-    // For done repairs, Odoo cancels/zeroes all demand stock moves after completion,
-    // making RPC qty unreliable. The DOM 'Done' column always shows the real value:
-    // 0.00 = tech left the part unconsumed, 1.00 = properly consumed.
-    // Note: 'picked' is set by Odoo during the completion flow regardless of actual
-    // consumption — it cannot be trusted as a consumed indicator here.
+    // Per le riparazioni completate, Odoo cancella/azzera tutte le stock move dopo il completamento,
+    // rendendo la qty RPC inaffidabile. La colonna DOM 'Done' mostra sempre il valore reale:
+    // 0.00 = il tecnico ha lasciato la parte non consumata, 1.00 = correttamente consumata.
+    // Nota: 'picked' è impostato da Odoo durante il flusso di completamento indipendentemente dal
+    // consumo effettivo — non può essere usato come indicatore di consumo qui.
     if (repair._state === "done" && repair._parts.length) {
       const domDone = readDomPartsDone();
       if (domDone && domDone.length === repair._parts.length) {
@@ -484,9 +484,9 @@ const Validator = (() => {
       }
     }
 
-    // Fetch product category names for note-reference matching.
-    // Techs often write the category abbreviation (e.g. "MB", "TP", "SPK", "KBB")
-    // instead of the full part name. One batch read covers all unique products.
+    // Recupera nomi categorie prodotto per corrispondenza riferimenti nelle note.
+    // I tecnici spesso scrivono l'abbreviazione della categoria (es. "MB", "TP", "SPK", "KBB")
+    // invece del nome completo della parte. Un singolo batch read copre tutti i prodotti unici.
     if (repair._parts.length) {
       const uniqueProdIds = [...new Set(repair._parts.map(p => p.product_id).filter(Boolean))];
       if (uniqueProdIds.length) {
@@ -499,7 +499,7 @@ const Validator = (() => {
       }
     }
 
-    // Log notes (mail.message)
+    // Note di log (mail.message)
     repair._notes = [];
     try {
       const notes = await OdooRPC.searchRead("mail.message", [
@@ -510,7 +510,7 @@ const Validator = (() => {
       repair._notes = notes;
     } catch (_) { /* skip */ }
 
-    // Sale order data
+    // Dati ordine di vendita
     repair._so = null;
     if (repair._so_id) {
       try {
@@ -520,7 +520,7 @@ const Validator = (() => {
         if (sos.length) {
           const so = sos[0];
           so._is_ber = schema.soBerField ? !!so[schema.soBerField] : false;
-          // Fetch order lines
+          // Recupera righe ordine
           so._lines = [];
           if (so.order_line && so.order_line.length) {
             try {
@@ -534,8 +534,8 @@ const Validator = (() => {
       } catch (_) { /* skip */ }
     }
 
-    // Effective SO — child/rework tickets inherit the parent's SO when they have none.
-    // Walks the full ancestor chain to handle grandchild repairs.
+    // SO effettivo — i ticket figlio/rework ereditano il SO del genitore quando non ne hanno uno.
+    // Percorre l'intera catena di antenati per gestire riparazioni nipoti.
     repair._effective_so_id = repair._so_id || null;
     repair._effective_so = repair._so;
     if (!repair._so_id && repair._parent_id) {
@@ -571,9 +571,9 @@ const Validator = (() => {
       } catch (_) { /* skip */ }
     }
 
-    // Family members (for family-level validation + OOW cost aggregation).
-    // Always fetch: rootId is parent's id when this is a child, or this repair's id
-    // when it IS the root. The query returns the root + all its children in one call.
+    // Membri famiglia (per validazione a livello famiglia + aggregazione costi OOW).
+    // Recupera sempre: rootId è l'id del genitore quando questo è un figlio, o l'id di questa
+    // riparazione quando È la root. La query restituisce root + tutti i figli in una sola chiamata.
     repair._family = [];
     repair._family_oow_cost = repair._parts
       .filter(p => p.warranty_type === "OOW")
@@ -599,7 +599,7 @@ const Validator = (() => {
       );
       repair._family = family;
 
-      // Batch-fetch move records from all family members except self, then sum OOW cost
+      // Fetch massivo dei record stock.move da tutti i membri famiglia eccetto sé stesso, poi somma costo OOW
       const familyMoveIds = family
         .filter(f => f.id !== repairId)
         .flatMap(f => Array.isArray(f.move_ids) ? f.move_ids : [])
@@ -626,7 +626,7 @@ const Validator = (() => {
   }
 
   /* ────────────────────────────────────────────────────────────────── *
-   *  VALIDATION ENGINE
+   *  MOTORE DI VALIDAZIONE
    * ────────────────────────────────────────────────────────────────── */
 
   function validate(repair) {
@@ -645,7 +645,7 @@ const Validator = (() => {
 
     function err(sev, cat, msg) { errors.push({ severity: sev, category: cat, message: msg }); }
 
-    /* ── Tier 1: Header ─────────────────────────────────────────── */
+    /* ── Livello 1: Intestazione ─────────────────────────────────────────── */
 
     if (!repair._lot_name) {
       err("error", "header", "Serial/Lot number is required but missing");
@@ -664,7 +664,7 @@ const Validator = (() => {
       err("warning", "header", "No parts attached to repair");
     }
 
-    /* ── Tier 1: Parts ──────────────────────────────────────────── */
+    /* ── Livello 1: Parti ──────────────────────────────────────────── */
 
     parts.forEach(p => {
       if (!p.product_name) {
@@ -681,9 +681,9 @@ const Validator = (() => {
       }
     });
 
-    // Device/part touch variant mismatch.
-    // 2-in-1 devices have a touchscreen and require touch-variant parts.
-    // Parts labelled N/T (Non-Touch) on a 2-in-1 will not fit or function correctly.
+    // Mismatch variante device/parte touch.
+    // I dispositivi 2-in-1 hanno un touchscreen e richiedono parti nella variante touch.
+    // Le parti etichettate N/T (Non-Touch) su un 2-in-1 non si adatteranno o funzioneranno correttamente.
     const deviceName = (repair._product_name || "").toLowerCase();
     const deviceIs2in1 = /2\s*n\s*1|2in1|2\s*-\s*in\s*-\s*1/.test(deviceName);
     if (deviceIs2in1) {
@@ -697,7 +697,7 @@ const Validator = (() => {
       });
     }
 
-    /* ── Tier 1: Log notes ──────────────────────────────────────── */
+    /* ── Livello 1: Note di log ─────────────────────────────────── */
 
     const hasNotes = notes.length > 0;
     const noteTexts = notes.map(n => (n.body || "").replace(/<[^>]+>/g, " ").trim());
@@ -716,8 +716,8 @@ const Validator = (() => {
       const anyRef = parts.some(p => {
         const name = (p.product_name || "").toLowerCase();
         const categ = (p.categ_name || "").toLowerCase();
-        // Tokenize part name + category abbreviation (e.g. "MB", "TP", "SPK") —
-        // techs often use the category shorthand rather than the full part name.
+        // Tokenizza nome parte + abbreviazione categoria (es. "MB", "TP", "SPK") —
+        // i tecnici spesso usano l'abbreviazione della categoria invece del nome completo.
         const tokens = [
           ...name.split(/[^a-z0-9]+/),
           ...categ.split(/[^a-z0-9]+/),
@@ -729,7 +729,7 @@ const Validator = (() => {
       }
     }
 
-    /* ── Tier 1: Coverage / CHS ─────────────────────────────────── */
+    /* ── Livello 1: Copertura / CHS ─────────────────────────────────── */
 
     const allNoteText = nonEmpty.join(" ").toLowerCase();
     const chsKeywords = ["chs", "comprehensive", "complete care", "completecare"];
@@ -745,25 +745,25 @@ const Validator = (() => {
     const iwParts = parts.filter(p => p.warranty_type === "IW");
     if (iwParts.length > 0) {
       const iwNames = iwParts.map(p => p.product_name).join(", ");
-      // If note mentions CHS but no CHS coverage → IW parts invalid
+      // Se la nota menziona CHS ma non c'è copertura CHS → le parti IW non sono valide
       if (noteRefChs && !hasChs) {
         err("error", "coverage",
           `Selected part(s) are In Warranty (${iwNames}) but device has no active CHS coverage — use OOW or BER parts`);
       }
     }
 
-    /* ── Tier 2: Tag ↔ State workflow ───────────────────────────── */
+    /* ── Livello 2: Tag ↔ State workflow ───────────────────────────── */
 
-    // HOLD_REQUIRED_TAGS → should be on_hold
+    // HOLD_REQUIRED_TAGS → dovrebbe essere on_hold
     for (const tag of tags) {
       if (tag in HOLD_REQUIRED_TAGS && state !== "on_hold") {
-        // Exception: done state + ber tag on BER family
+        // Eccezione: stato done + tag ber sulla famiglia BER
         if (state === "done" && BER_RELATED_TAGS.has(tag) && hasBerTag) continue;
         err("error", "workflow", HOLD_REQUIRED_TAGS[tag]);
       }
     }
 
-    // PROCESS_TAGS on draft
+    // PROCESS_TAGS su bozza
     if (state === "draft") {
       for (const tag of tags) {
         if (PROCESS_TAGS.has(tag)) {
@@ -772,7 +772,7 @@ const Validator = (() => {
       }
     }
 
-    // DONE_STALE_TAGS on done
+    // DONE_STALE_TAGS su completato
     if (state === "done") {
       for (const tag of tags) {
         if (DONE_STALE_TAGS.has(tag)) {
@@ -782,7 +782,7 @@ const Validator = (() => {
       }
     }
 
-    // Specific tag rules
+    // Regole tag specifiche
     if (isRtcTag && state === "done" && parts.length > 0) {
       err("warning", "workflow", "Tag 'Return to Customer' on completed repair with parts — workflow says remove parts if no repair was performed");
     }
@@ -818,14 +818,14 @@ const Validator = (() => {
       err("warning", "workflow", "Tag 'Waiting on Replacement Device' still set on Done repair — remove tag after replacement received");
     }
 
-    // 'Transferred to Imaging' tag is required on all non-BER repairs.
-    // Active in two windows:
-    //   1. under_repair — must be added before ending the repair.
-    //   2. done — only while device is still at WH/Stock/OSC-Imaging (repair was ended
-    //      without the tag; once the device leaves imaging the check is no longer relevant).
-    // Exempt: BER-tagged repairs, BER-approved for dismantle, SO flagged as BER,
-    //         "Return to Customer" tag, or "No Repair Required" resolution —
-    //         device never went to imaging, it is being returned as-is.
+    // Il tag 'Transferred to Imaging' è obbligatorio su tutte le riparazioni non-BER.
+    // Attivo in due finestre:
+    //   1. under_repair — deve essere aggiunto prima di terminare la riparazione.
+    //   2. done — solo finché il dispositivo è ancora in WH/Stock/OSC-Imaging (riparazione terminata
+    //      senza il tag; una volta che il dispositivo lascia l'imaging il controllo non è più rilevante).
+    // Esentati: riparazioni con tag BER, approvate per smontaggio, SO contrassegnato come BER,
+    //           tag "Return to Customer", o risoluzione "No Repair Required" —
+    //           il dispositivo non è mai andato in imaging, viene restituito così com'è.
     const isBerRepair = hasBerTag || isDismantleTag || !!(repair._effective_so && repair._effective_so._is_ber);
     if (!isBerRepair && !isRtcTag && !isNoRepair) {
       const hasImagingTag = tags.includes("transferred to imaging");
@@ -837,7 +837,7 @@ const Validator = (() => {
       }
     }
 
-    /* ── Tier 3: State-specific field requirements ──────────────── */
+    /* ── Livello 3: Requisiti campo specifici per stato ──────────────── */
 
     if (state === "confirmed" && !repair._assessment_name) {
       err("error", "workflow", "Confirmed repairs must have an Assessment Responsible assigned");
@@ -855,7 +855,7 @@ const Validator = (() => {
       }
     }
     if (isNoRepair && !isRtcTag) {
-      // Tag requirement depends on device location — each location implies a different workflow tag.
+      // Il requisito del tag dipende dalla posizione del dispositivo — ogni posizione implica un tag workflow diverso.
       const loc = (repair._device_location || "").toLowerCase();
       const isAtImaging = loc.includes("osc-imaging");
       const isAtStaging = loc.includes("b-14") || loc.includes("staging") || loc.includes("contingence");
@@ -872,7 +872,7 @@ const Validator = (() => {
       err("warning", "workflow", "Resolution is 'No Repair Required' but parts are attached — remove parts if device was not repaired");
     }
 
-    // DOA checks
+    // Controlli DOA
     const doaTag = tags.includes("doa part") || tags.includes("part doa");
     if (doaTag && nonEmpty.length > 0) {
       const doaKw = ["doa", "defective", "dead on arrival"];
@@ -882,7 +882,7 @@ const Validator = (() => {
       }
     }
 
-    // BER-parts requested
+    // BER-parti richieste
     const berPartsReq = tags.includes("ber-parts requested") || tags.includes("ber-part(s) requested");
     if (berPartsReq) {
       err("warning", "workflow", "Tag 'BER-Parts Requested' present — review requested BER parts workflow and keep repair On Hold");
@@ -891,9 +891,9 @@ const Validator = (() => {
       }
     }
 
-    /* ── Consumption checks (blocks End Repair) ─────────────────── */
+    /* ── Controlli consumo (blocca End Repair) ─────────────────── */
 
-    // Exception cases where parts are not expected to be consumed
+    // Casi eccezione dove non ci si aspetta che le parti siano consumate
     const skipConsumption = isNoRepair || isRtcTag || isDismantleTag;
 
     if (["under_repair", "done"].includes(state) && !skipConsumption) {
@@ -902,10 +902,10 @@ const Validator = (() => {
         return rlt !== "remove" && rlt !== "recycle";
       });
       consumableParts.forEach(p => {
-        // p.done is DOM-corrected for done repairs (see readDomPartsDone above).
-        // 0.00 = tech genuinely did not consume the part before clicking End Repair.
-        // 1.00 = properly consumed. Do not use p.picked — Odoo sets it during the
-        // completion flow regardless of actual consumption.
+        // p.done è corretto dal DOM per riparazioni completate (vedi readDomPartsDone sopra).
+        // 0.00 = il tecnico non ha genuinamente consumato la parte prima di cliccare End Repair.
+        // 1.00 = correttamente consumata. Non usare p.picked — Odoo lo imposta durante il
+        // flusso di completamento indipendentemente dal consumo effettivo.
         const isUsed = p.done >= p.demand;
         if (!isUsed) {
           err("error", "part",
@@ -914,19 +914,19 @@ const Validator = (() => {
       });
     }
 
-    /* ── BER Validation ─────────────────────────────────────────── */
+    /* ── Validazione BER ────────────────────────────────────────── */
 
     const oowParts = parts.filter(p => p.warranty_type === "OOW");
-    // OOW parts whose coverage type is NOT CHS — these are truly billable and need a quotation
+    // Parti OOW il cui tipo copertura NON è CHS — queste sono veramente fatturabili e necessitano un preventivo
     const billedOowParts = oowParts.filter(p =>
       !chsKeywords.some(kw => (p.coverage_type_name || "").toLowerCase().includes(kw))
     );
     const effectiveSo   = repair._effective_so;
     const effectiveSoId = repair._effective_so_id;
 
-    // CHS repairs must only use IW (In Warranty) parts — OOW and BER parts are invalid.
-    // Recycle/Remove parts are exempted: they represent wrong parts being returned to stock
-    // (i.e. the correction itself), not new parts being added to the repair.
+    // Le riparazioni CHS devono usare solo parti IW (In Warranty) — parti OOW e BER non sono valide.
+    // Le parti Recycle/Remove sono esenti: rappresentano parti sbagliate restituite a magazzino
+    // (cioè la correzione stessa), non nuove parti aggiunte alla riparazione.
     if (hasChs) {
       const nonIwParts = parts.filter(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
@@ -941,9 +941,9 @@ const Validator = (() => {
       }
     }
 
-    // Rework repairs must NOT have their own SO directly linked — the SO belongs on the parent repair.
-    // If a rework has a direct SO it was created before validation was live; cancel it to unblock
-    // End Repair (Odoo disables End Repair when a non-cancelled SO is directly linked to the repair).
+    // Le riparazioni rework NON devono avere un proprio SO collegato — il SO va sulla riparazione genitore.
+    // Se un rework ha un SO diretto è stato creato prima che la validazione fosse attiva; cancellarlo per sbloccare
+    // End Repair (Odoo disabilita End Repair quando un SO non cancellato è collegato direttamente alla riparazione).
     if ((repair._is_rework || repair._parent_id) && repair._so_id && state !== "draft") {
       const soName = repair._so ? repair._so.name : repair._so_id;
       const soCancelled = repair._so && repair._so.state === "cancel";
@@ -953,8 +953,8 @@ const Validator = (() => {
       }
     }
 
-    // CHS repairs must NOT have a linked quotation — CHS is fully covered under warranty.
-    // If an SO exists it was created before validation was live and must be cancelled.
+    // Le riparazioni CHS NON devono avere un preventivo collegato — CHS è completamente coperto in garanzia.
+    // Se esiste un SO è stato creato prima che la validazione fosse attiva e deve essere cancellato.
     if (hasChs && effectiveSoId && state !== "draft") {
       const effectiveSoCancelled = repair._effective_so && repair._effective_so.state === "cancel";
       if (!effectiveSoCancelled) {
@@ -965,14 +965,14 @@ const Validator = (() => {
       }
     }
 
-    // ESDP coverage requires a linked quotation (unless resolution is "no repair required")
+    // La copertura ESDP richiede un preventivo collegato (a meno che la risoluzione non sia "no repair required")
     if (repair._is_esdp && !isNoRepair && state !== "draft" && !effectiveSoId) {
       err("error", "ber",
         "ESDP coverage requires a linked Quotation/Sales Order — create and link a quotation before completing the repair");
     }
 
-    // ESDP: any Recycle/Remove parts (inventory adjustments — wrong parts being swapped out)
-    // must be reflected on the linked SO so billing stays accurate.
+    // ESDP: qualsiasi parte Recycle/Remove (rettifiche inventario — parti sbagliate sostituite)
+    // devono essere riflesse nel SO collegato affinché la fatturazione resti accurata.
     if (repair._is_esdp && effectiveSoId && effectiveSo && state !== "draft") {
       const adjustmentParts = parts.filter(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
@@ -989,8 +989,8 @@ const Validator = (() => {
         ? ` (${effectiveSo.name} — inherited from parent repair)`
         : ` (${effectiveSo.name})`;
 
-      // Every repair with a SO must have a Labor line on the quotation.
-      // Exceptions: CHS (fully covered under warranty), reworks (labor is on the parent repair's SO).
+      // Ogni riparazione con un SO deve avere una riga Manodopera nel preventivo.
+      // Eccezioni: CHS (completamente coperto in garanzia), rework (la manodopera è sul SO della riparazione genitore).
       const isRework = repair._is_rework || !!repair._parent_id;
       const hasLabor = effectiveSo._lines.some(l =>
         (OdooRPC.m2oName(l.product_id) || l.name || "").toLowerCase().includes("labor")
@@ -999,7 +999,7 @@ const Validator = (() => {
         err("error", "ber", `BER: Quotation${soLabel} is missing a Labor line`);
       }
 
-      // Rework: every Add-type OOW part must appear in the parent SO so it gets billed correctly.
+      // Rework: ogni parte OOW di tipo Add deve comparire nel SO genitore per essere fatturata correttamente.
       if (isRework && effectiveSo._from_parent) {
         const addOowParts = parts.filter(p =>
           (p.repair_line_type || "").toLowerCase() === "add" && p.warranty_type === "OOW"
@@ -1014,7 +1014,7 @@ const Validator = (() => {
       }
 
       if (effectiveSo._is_ber) {
-        // SO flagged as BER — repair should be On Hold unless an active child is handling it
+        // SO contrassegnato come BER — la riparazione dovrebbe essere On Hold a meno che un figlio attivo la gestisca
         if (state !== "on_hold") {
           const hasActiveChild = repair._family.some(f =>
             f.is_rework && f.id !== repair.id && !["done", "cancel"].includes(f.state)
@@ -1029,15 +1029,15 @@ const Validator = (() => {
       }
     }
 
-    // No SO but billed OOW parts present → missing quotation
-    // Parts whose coverage type is CHS are exempt — CHS covers them, no quotation needed
+    // Nessun SO ma parti OOW fatturate presenti → preventivo mancante
+    // Le parti con tipo copertura CHS sono esentate — CHS le copre, nessun preventivo necessario
     if (state !== "draft" && !effectiveSoId && billedOowParts.length > 0) {
       err("error", "ber",
         `BER: Quotation/Sales Order not linked — ${billedOowParts.length} OOW part(s) present (not covered by CHS)`);
     }
 
-    // Family-wide OOW cost vs. BER threshold
-    // Skip entirely when CHS is active — CHS-covered OOW parts do not count toward BER cost
+    // Costo OOW complessivo famiglia vs. soglia BER
+    // Salta interamente quando CHS è attivo — le parti OOW coperte da CHS non contano verso il costo BER
     const familyCost = repair._family_oow_cost || 0;
     if (state !== "draft" && !hasChs && familyCost >= BER_THRESHOLD && !hasBerTag) {
       const scope = repair._parent_id || repair._is_rework ? "family" : "repair";
@@ -1049,7 +1049,7 @@ const Validator = (() => {
   }
 
   /* ────────────────────────────────────────────────────────────────── *
-   *  PUBLIC API
+   *  API PUBBLICA
    * ────────────────────────────────────────────────────────────────── */
 
   async function validateRepair(repairId) {
@@ -1093,7 +1093,7 @@ const Validator = (() => {
     };
   }
 
-  /** Reset cached schema (e.g. after navigating to a different Odoo instance). */
+  /** Resetta lo schema in cache (es. dopo aver navigato su un'altra istanza Odoo). */
   function resetSchema() { _schemaCache = null; }
 
   return { validateRepair, resetSchema, classifyWarranty };

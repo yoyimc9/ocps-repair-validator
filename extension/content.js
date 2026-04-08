@@ -24,17 +24,17 @@
   let debounceTimer = null;
   let rpcDebounceTimer = null;
   let domDebounceTimer = null;
-  let bodyObserverTimer = null;  // debounce handle for body MutationObserver
-  let lastUiControlsApply = 0;  // throttle timestamp for applyUiControls() in body observer
+  let bodyObserverTimer = null;  // handle debounce per MutationObserver del body
+  let lastUiControlsApply = 0;  // timestamp throttle per applyUiControls() nell'observer del body
   let formObserver = null;
 
-  /* ── Helpers ─────────────────────────────────────────────────────── */
+  /* ── Helper ──────────────────────────────────────────────────────── */
 
   function getRepairIdFromUrl() {
     const path = window.location.pathname;
     if (!path.includes("/repairs/")) return null;
-    // Return null unless the path ends with a numeric segment (a specific form record)
-    // AND that segment belongs to a repair record (not a nested sale.order, picking, etc.).
+    // Ritorna null a meno che il percorso non termini con un segmento numerico (un record form specifico)
+    // E quel segmento appartenga a un record riparazione (non un sale.order, picking, ecc. annidato).
     // /odoo/repairs/2076                   → 2076  (parent repair form)
     // /odoo/repairs/2076/repair.order/5678 → 5678  (child/rework repair form)
     // /odoo/repairs/1097/sale.order/1      → null  (SO sub-view — not a repair form)
@@ -165,7 +165,7 @@
     if (!panel) {
       panel = document.createElement("div");
       panel.id = PANEL_ID;
-      // Best position: directly above the form sheet, below the action buttons
+      // Posizione ideale: direttamente sopra il foglio form, sotto i pulsanti azione
       if (sheet && sheet.parentElement) {
         sheet.parentElement.insertBefore(panel, sheet);
       } else {
@@ -207,11 +207,11 @@
         ? `${warnCount} Warning${warnCount !== 1 ? "s" : ""}`
         : "All Checks Passed";
 
-    // Ticket info
+    // Info ticket
     const deliveries = data.delivery_history || [];
     const returns    = data.return_history   || [];
-    // thisRepairDeliveries: deliveries whose picking was triggered by THIS repair order
-    // priorDeliveries: deliveries from other repair orders for the same serial
+    // thisRepairDeliveries: consegne il cui picking è stato attivato da QUESTO ordine di riparazione
+    // priorDeliveries: consegne da altri ordini di riparazione per lo stesso seriale
     const thisRepairDeliveries = deliveries.filter(d => d.repair_id === data.id);
     const priorDeliveries      = deliveries.filter(d => d.repair_id && d.repair_id !== data.id);
 
@@ -239,7 +239,7 @@
       ticketHtml += `</div>`;
     }
 
-    // Parts summary
+    // Riepilogo parti
     let partsHtml = "";
     if (data.parts && data.parts.length) {
       const iw = data.parts.filter(p => (p.warranty_type || "").toUpperCase() === "IW").length;
@@ -253,7 +253,7 @@
       </div>`;
     }
 
-    // Issue list
+    // Lista problemi
     let issuesHtml = "";
     if (!isClean) {
       issuesHtml = `<ul class="ocps-issues">`;
@@ -287,11 +287,11 @@
 
     const pillCls = errorCount > 0 ? "ocps-error" : warnCount > 0 ? "ocps-warn" : "ocps-clean";
     panel.className = pillCls;
-    // Auto-expand when there are issues
+    // Auto-espandi quando ci sono problemi
     if (errorCount > 0 || warnCount > 0) panel.classList.remove("ocps-collapsed");
     else panel.classList.add("ocps-collapsed");
 
-    // Device History section — show when there is any delivery/return move, or repair is done
+    // Sezione Storico Dispositivo — mostra quando c'è qualsiasi move consegna/reso, o riparazione completata
     let historyHtml = "";
     if (deliveries.length > 0 || returns.length > 0 || data.state === "done") {
       const hasEnrichment = deliveries.some(d => d.repair_id != null);
@@ -349,7 +349,7 @@
       }
     };
 
-    // Wire buttons
+    // Collega pulsanti
     panel.querySelector(".ocps-toggle").onclick = (e) => {
       e.stopPropagation();
       panel.classList.toggle("ocps-collapsed");
@@ -362,7 +362,7 @@
       if (rid) runValidation(rid);
     };
 
-    // Wire history toggle
+    // Collega toggle storico
     const histHeader = panel.querySelector(".ocps-history-header");
     if (histHeader) {
       histHeader.onclick = () => {
@@ -374,7 +374,7 @@
       };
     }
 
-    // Hide/show End Repair button based on errors
+    // Nascondi/mostra pulsante End Repair in base agli errori
     setEndRepairHidden(errorCount > 0, errorCount);
 
     // Hide Create Quotation if coverage is CHS (no quotation needed) or if this is a rework
@@ -383,10 +383,10 @@
     const isRework = !!(data.parent_repair_id);
     setCreateQuotationHidden(isChs || isRework);
 
-    // Apply admin UI control overrides (runs last so it layers on top of validator decisions)
+    // Applica override controlli UI admin (eseguito per ultimo per sovrapporsi alle decisioni del validatore)
     applyUiControls();
 
-    // Blocked serial check
+    // Controllo seriale bloccato
     if (data.lot_name && checkSerialBlocked(data.lot_name)) {
       showBlockedSerialModal(data.lot_name);
     }
@@ -414,7 +414,7 @@
     };
   }
 
-  /* ── Validation driver ────────────────────────────────────────── */
+  /* ── Driver di validazione ──────────────────────────────────────── */
 
   /* ── Form MutationObserver — live revalidation on DOM changes ─── */
 
@@ -431,11 +431,11 @@
     if (!el || el === document.body || el === document.documentElement) return false;
     const tag = el.tagName;
     if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return true;
-    // Odoo autocomplete / combobox widgets
+    // Widget autocomplete / combobox Odoo
     if (el.getAttribute("role") === "combobox") return true;
-    // Any focused element inside an open dropdown or autocomplete panel
+    // Qualsiasi elemento focalizzato dentro un dropdown aperto o pannello autocomplete
     if (el.closest(".dropdown-menu, .o_autocomplete_dropdown, .o_field_many2one_dropdown")) return true;
-    // Odoo marks the currently-editing field widget with .o_focused
+    // Odoo marca il widget campo in modifica con .o_focused
     if (el.closest(".o_field_widget.o_focused")) return true;
     return false;
   }
@@ -448,7 +448,7 @@
     function scheduleDomRevalidate() {
       clearTimeout(domDebounceTimer);
       domDebounceTimer = setTimeout(function tryRevalidate() {
-        // If user still has a field/dropdown focused, keep waiting instead of interrupting.
+        // Se l'utente ha ancora un campo/dropdown focalizzato, continua ad aspettare invece di interrompere.
         if (isUserInteractingWithForm()) {
           domDebounceTimer = setTimeout(tryRevalidate, DOM_REVALIDATE_DEBOUNCE_MS);
           return;
@@ -459,7 +459,7 @@
     }
 
     formObserver = new MutationObserver((mutations) => {
-      // Ignore mutations that only affect our own validation panel (avoid loop).
+      // Ignora mutazioni che riguardano solo il nostro pannello di validazione (evita loop).
       const panel = document.getElementById(PANEL_ID);
       if (panel && mutations.every(m => m.target === panel || panel.contains(m.target))) return;
       scheduleDomRevalidate();
@@ -467,11 +467,11 @@
     formObserver.observe(form, { childList: true, subtree: true, characterData: true });
   }
 
-  /* ── Validation driver ────────────────────────────────────────── */
+  /* ── Driver di validazione ──────────────────────────────────────── */
 
   async function runValidation(repairId) {
     stopFormObserver(); // pause live observer while validation runs
-    // Wait for Odoo to finish rendering the form before inserting the panel.
+    // Aspetta che Odoo finisca il rendering del form prima di inserire il pannello.
     await waitForElement(".o_form_sheet", 6000);
     renderLoading(repairId);
     await loadBlockedSerials(); // always fetch fresh list before checking
@@ -514,8 +514,8 @@
   // updates, so window.location still shows the old path when we read it.
   // "navigatesuccess" fires after the navigation commits and window.location is current.
   if (typeof navigation !== "undefined" && navigation.addEventListener) {
-    // navigatesuccess — fires after forward SPA navigations complete
-    // currententrychange — fires on every history entry change including browser back/forward
+    // navigatesuccess — scatta dopo che le navigazioni SPA forward sono complete
+    // currententrychange — scatta ad ogni cambio di entry nella history incluso avanti/indietro del browser
     navigation.addEventListener("navigatesuccess", checkForRepairPage);
     navigation.addEventListener("currententrychange", checkForRepairPage);
   } else {
@@ -555,7 +555,7 @@
           const url = (typeof input === "string" ? input : (input && input.url)) || "";
           if (url.includes("/web/dataset/call_kw")) {
             let body = null;
-            try { body = JSON.parse(init && init.body); } catch { /* ignore */ }
+            try { body = JSON.parse(init && init.body); } catch { /* ignora */ }
             const params  = (body && body.params) || {};
             const model   = params.model  || "";
             const method  = params.method || "";
@@ -571,7 +571,7 @@
             }
           }
         }
-      } catch { /* never break fetch */ }
+      } catch { /* non interrompere mai fetch */ }
       return response;
     };
     window.fetch.__ocpsPatched = true;
@@ -581,7 +581,7 @@
   // reinsertion after statusbar re-render). Debounced to 150ms to avoid running on every
   // individual DOM mutation — Odoo generates hundreds per second during renders.
   const observer = new MutationObserver((mutations) => {
-    // Skip if all mutations are inside our own panel (avoid feedback loop).
+    // Salta se tutte le mutazioni sono dentro il nostro pannello (evita loop di feedback).
     const panel = document.getElementById(PANEL_ID);
     if (panel && mutations.every(m => panel === m.target || panel.contains(m.target))) return;
 
@@ -590,13 +590,13 @@
       bodyObserverTimer = null;
       checkForRepairPage();
       if (currentRepairId) {
-        // Re-enforce End Repair button visibility (Odoo re-renders the statusbar on tab switches etc.)
+        // Ri-applica visibilità pulsante End Repair (Odoo ri-renderizza la statusbar su switch tab ecc.)
         const p = document.getElementById(PANEL_ID);
         if (p) {
           const errCount = p.querySelectorAll(".ocps-issue-err").length;
           setEndRepairHidden(errCount > 0, errCount);
         }
-        // Re-apply admin UI controls — throttled to at most once per 500ms
+        // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {
           lastUiControlsApply = Date.now();
           applyUiControls();
@@ -605,7 +605,7 @@
     }, 150);
   });
 
-  /* ── Announcements & Blocked Serials ────────────────────────── */
+  /* ── Annunci e Seriali Bloccati ───────────────────────────────── */
 
   const ANNOUNCE_URL      = "http://10.56.65.139:3131/api/announcements";
   const BLOCKED_URL        = "http://10.56.65.139:3131/api/blocked";
@@ -616,9 +616,9 @@
   let cachedBlockedSerials = [];
   let cachedUiControls     = {};
 
-  // ── UI Controls ──────────────────────────────────────────────────────────
+  // ── Controlli UI ──────────────────────────────────────────────────────────
 
-  // Element finders keyed by control ID (must match catalog in admin.html)
+  // Finder elementi per ID controllo (deve corrispondere al catalogo in admin.html)
   const CONTROL_DEFS = {
     btn_create_quotation: () => [...document.querySelectorAll(
       'button[name="action_create_sale_order"], button[name="action_quotation_create"]')],
@@ -646,15 +646,15 @@
       const data = await resp.json();
       cachedUiControls = data.controls || {};
       applyUiControls();
-    } catch { /* silent */ }
+    } catch { /* silenzioso */ }
   }
 
   function applyUiControls() {
     if (!currentRepairId) return;
-    // Restore previously controlled elements (CSS class approach — no conflict with validator's inline styles)
+    // Ripristina elementi precedentemente controllati (approccio classi CSS — nessun conflitto con stili inline del validatore)
     document.querySelectorAll('.ocps-ui-hidden').forEach(el => el.classList.remove('ocps-ui-hidden'));
     document.querySelectorAll('.ocps-ui-disabled').forEach(el => el.classList.remove('ocps-ui-disabled'));
-    // Apply active controls
+    // Applica controlli attivi
     Object.entries(cachedUiControls).forEach(([id, ctrl]) => {
       if (!ctrl.enabled) return;
       const finder = CONTROL_DEFS[id];
@@ -671,7 +671,7 @@
       if (!resp.ok) return;
       const data = await resp.json();
       cachedBlockedSerials = (data.blocked || []).map(b => (b.serial || "").trim().toLowerCase());
-    } catch { /* silent */ }
+    } catch { /* silenzioso */ }
   }
 
   function checkSerialBlocked(serial) {
@@ -777,12 +777,12 @@
       for (const ann of sorted) {
         await showAnnouncementModal(ann);
       }
-    } catch { /* silent — announcements are non-critical */ }
+    } catch { /* silenzioso — gli annunci non sono critici */ }
   }
-  /* ── Messages ─────────────────────────────────────────────────── */
+  /* ── Messaggi ─────────────────────────────────────────────────── */
 
   async function getOdooUsername() {
-    // Always try fresh from Odoo session; fall back to cached value if unavailable.
+    // Prova sempre la sessione Odoo fresca; fallback al valore in cache se non disponibile.
     try {
       const resp = await fetch("/web/session/get_session_info", {
         method: "POST",
@@ -796,7 +796,7 @@
         try { chrome.storage.local.set({ ocps_odoo_username: login }); } catch {}
         return login;
       }
-    } catch { /* fall through */ }
+    } catch { /* prosegui */ }
     try {
       return await new Promise(resolve =>
         chrome.storage.local.get("ocps_odoo_username", d => resolve((d && d.ocps_odoo_username) || ""))
@@ -811,7 +811,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user }),
       });
-    } catch { /* silent */ }
+    } catch { /* silenzioso */ }
   }
 
   async function ackAnnouncement(annId, user) {
@@ -821,7 +821,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user }),
       });
-    } catch { /* silent */ }
+    } catch { /* silenzioso */ }
   }
 
   function showMessageModal(msg) {
@@ -863,24 +863,24 @@
         await showMessageModal(msg);
         await ackMessage(msg.id, user);
       }
-    } catch { /* silent */ }
+    } catch { /* silenzioso */ }
   }
-  /* ── Initialization ───────────────────────────────────────────── */
+  /* ── Inizializzazione ─────────────────────────────────────────── */
 
   function init() {
     checkForRepairPage();
     observer.observe(document.body, { childList: true, subtree: true });
-    // No setInterval for checkForRepairPage — Navigation API + history patch + popstate cover all SPA navigations.
-    // Announcements: check on load and every minute
+    // Nessun setInterval per checkForRepairPage — Navigation API + patch history + popstate coprono tutte le navigazioni SPA.
+    // Annunci: controlla al caricamento e ogni minuto
     checkAnnouncements();
     setInterval(checkAnnouncements, ANNOUNCE_INTERVAL);
-    // Blocked serials: load on start and refresh every minute
+    // Seriali bloccati: carica all'avvio e aggiorna ogni minuto
     loadBlockedSerials();
     setInterval(loadBlockedSerials, ANNOUNCE_INTERVAL);
-    // UI Controls: load on start and refresh every minute
+    // Controlli UI: carica all'avvio e aggiorna ogni minuto
     loadUiControls();
     setInterval(loadUiControls, ANNOUNCE_INTERVAL);
-    // Messages: check on load and every minute
+    // Messaggi: controlla al caricamento e ogni minuto
     checkMessages();
     setInterval(checkMessages, ANNOUNCE_INTERVAL);
   }

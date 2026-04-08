@@ -1,5 +1,5 @@
-﻿# setup.ps1  -  Run this ONCE to generate the signing key and collect the extension ID.
-# After running, add the two GitHub Secrets as instructed below.
+﻿# setup.ps1  -  Eseguire UNA SOLA VOLTA per generare la chiave di firma e ottenere l'ID dell'estensione.
+# Dopo l'esecuzione, aggiungere i due GitHub Secrets come indicato sotto.
 
 $extensionDir = "$PSScriptRoot\extension"
 $pemFile      = "$PSScriptRoot\extension.pem"
@@ -13,7 +13,7 @@ if (-not (Test-Path $chrome)) {
     exit 1
 }
 
-# -- Step 1: Pack the extension (generates extension.pem + extension.crx) --
+# -- Passo 1: Impacchetta l'estensione (genera extension.pem + extension.crx) --
 Write-Host ""
 Write-Host "[1/3] Packing extension..." -ForegroundColor Cyan
 & $chrome --pack-extension="$extensionDir" --no-sandbox 2>$null
@@ -26,7 +26,7 @@ if (-not (Test-Path "$PSScriptRoot\extension.pem")) {
 Write-Host "    extension.pem  -> created" -ForegroundColor Green
 Write-Host "    extension.crx  -> created" -ForegroundColor Green
 
-# -- Step 2: Base64-encode the .pem for the GitHub Secret --
+# -- Passo 2: Codifica in base64 il .pem per il GitHub Secret --
 Write-Host ""
 Write-Host "[2/3] Encoding extension.pem to base64 (for GitHub Secret)..." -ForegroundColor Cyan
 $base64Pem = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pemFile))
@@ -35,7 +35,7 @@ $secretFile = "$PSScriptRoot\EXTENSION_PEM_SECRET.txt"
 $base64Pem | Set-Content $secretFile -Encoding ASCII
 Write-Host "    Saved to: $secretFile" -ForegroundColor Green
 
-# -- Step 3: Remind user to get extension ID from Chrome --
+# -- Passo 3: Ricordare all'utente di ottenere l'ID estensione da Chrome --
 Write-Host ""
 Write-Host "[3/3] Get your Extension ID:" -ForegroundColor Cyan
 Write-Host "    1. Open chrome://extensions   (Developer mode ON)"

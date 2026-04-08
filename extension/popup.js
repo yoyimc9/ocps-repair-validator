@@ -1,4 +1,4 @@
-/* OCPS Repair Validator — Popup Script (Standalone) */
+/* OCPS Repair Validator — Script Popup (Standalone) */
 (function () {
   "use strict";
 
@@ -9,7 +9,7 @@
 
   checkBtn.addEventListener("click", () => checkSession());
 
-  // Auto-check on open
+  // Controllo automatico all'apertura
   checkSession();
 
   async function checkSession() {
@@ -17,8 +17,8 @@
     statusText.textContent = "Checking Odoo session…";
     sessionInfo.style.display = "none";
 
-    // We need to run this check on the active Odoo tab, not from the popup origin.
-    // Use chrome.tabs to execute a script on the current Odoo tab.
+    // Serve eseguire il controllo sulla tab Odoo attiva, non dall'origine del popup.
+    // Usiamo chrome.tabs per eseguire uno script sulla tab Odoo corrente.
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab || !tab.url || !tab.url.includes("odoo.com")) {
@@ -29,7 +29,7 @@
         return;
       }
 
-      // Execute a small script on the active tab to test the session
+      // Esegui un piccolo script sulla tab attiva per verificare la sessione
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: async () => {

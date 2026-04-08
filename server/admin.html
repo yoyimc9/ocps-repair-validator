@@ -15,7 +15,7 @@
       padding: 0;
     }
 
-    /* ── Sidebar layout ── */
+    /* ── Layout barra laterale ── */
     .layout { display: flex; min-height: 100vh; }
 
     .sidebar {
@@ -64,7 +64,7 @@
 
     .main { flex: 1; padding: 32px 32px; overflow-y: auto; }
 
-    /* ── Tab panels ── */
+    /* ── Pannelli tab ── */
     .tab-panel { display: none; max-width: 680px; }
     .tab-panel.active { display: block; }
 
@@ -72,7 +72,7 @@
     .panel-header h2 { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
     .panel-header p { font-size: 13px; color: #64748b; }
 
-    /* ── Cards ── */
+    /* ── Schede ── */
     .card {
       background: #1e293b;
       border: 1px solid #334155;
@@ -169,7 +169,7 @@
 
     .empty { color: #475569; font-size: 13px; padding: 20px 0; text-align: center; }
 
-    /* ── UI Controls ── */
+    /* ── Controlli UI ── */
     .nav-item.active.ui-nav { border-left-color: #8b5cf6; background: rgba(139,92,246,.08); }
     .nav-badge.violet { background: rgba(139,92,246,.2); color: #a78bfa; }
 
@@ -212,11 +212,11 @@
     .toggle-switch input:checked + .toggle-track::before { transform: translateX(18px); }
     .ui-save-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 
-    /* ── Messages ── */
+    /* ── Messaggi ── */
     .nav-item.active.msg-nav { border-left-color: #f59e0b; background: rgba(245,158,11,.08); }
     .nav-badge.amber { background: rgba(245,158,11,.2); color: #fcd34d; }
 
-    /* ── Extension ── */
+    /* ── Estensione ── */
     .nav-item.active.ext-nav { border-left-color: #22c55e; background: rgba(34,197,94,.08); }
     .reload-btn { background: #22c55e; }
     .reload-btn:hover { background: #16a34a; }
@@ -292,7 +292,7 @@
 
   <main class="main">
 
-    <!-- ── Announcements ───────────────────────────────────── -->
+    <!-- ── Annunci ──────────────────────────────────────── -->
     <div class="tab-panel active" id="tab-announcements">
       <div class="panel-header">
         <h2>📢 Announcements</h2>
@@ -328,7 +328,7 @@
       </div>
     </div>
 
-    <!-- ── Block Devices ───────────────────────────────────── -->
+    <!-- ── Blocco Dispositivi ──────────────────────────── -->
     <div class="tab-panel" id="tab-blocked">
       <div class="panel-header">
         <h2>🔒 Block Devices</h2>
@@ -357,7 +357,7 @@
       </div>
     </div>
 
-    <!-- ── UI Controls ──────────────────────────────────────── -->
+    <!-- ── Controlli UI ───────────────────────────────────── -->
     <div class="tab-panel" id="tab-ui-controls">
       <div class="panel-header">
         <h2>🎛️ UI Controls</h2>
@@ -372,7 +372,7 @@
       </div>
     </div>
 
-    <!-- ── Extension ───────────────────────────────────────────── -->
+    <!-- ── Estensione ──────────────────────────────────────────── -->
     <div class="tab-panel" id="tab-extension">
       <div class="panel-header">
         <h2>🔄 Extension</h2>
@@ -402,7 +402,7 @@
         </div>
       </div>
     </div>
-    <!-- ── Server Config ─────────────────────────────────────────────── -->
+    <!-- ── Configurazione Server ──────────────────────────────────── -->
     <div class="tab-panel" id="tab-server-config">
       <div class="panel-header">
         <h2>⚙️ Server Config</h2>
@@ -442,7 +442,7 @@
         </div>
       </div>
     </div>
-    <!-- ── Messages ────────────────────────────────────────────── -->
+    <!-- ── Messaggi ─────────────────────────────────────────────── -->
     <div class="tab-panel" id="tab-messages">
       <div class="panel-header">
         <h2>💬 Messages</h2>
@@ -481,7 +481,7 @@
   let announcements = [];
   let blockedList   = [];
 
-  // ── Tab navigation ───────────────────────────────────────────────────────
+  // ── Navigazione tab ───────────────────────────────────────────────────────
   function showTab(name) {
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
@@ -496,7 +496,7 @@
     return d.innerHTML;
   }
 
-  // ── Announcements ────────────────────────────────────────────────────────
+  // ── Annunci ──────────────────────────────────────────────────────────────
   async function loadAnnouncements() {
     try {
       const r = await fetch(`${API}/announcements`);
@@ -563,7 +563,7 @@
       </div>`).join("");
   }
 
-  // ── Blocked Serials ──────────────────────────────────────────────────────
+  // ── Seriali Bloccati ──────────────────────────────────────────────────────
   async function loadBlocked() {
     try {
       const r = await fetch(`${API}/blocked`);
@@ -622,7 +622,7 @@
       </div>`).join("");
   }
 
-  // ── Shared helpers ───────────────────────────────────────────────────────
+  // ── Helper condivisi ──────────────────────────────────────────────────────
   async function apiPut(endpoint, data) {
     try {
       const r = await fetch(`${API}/${endpoint}`, {
@@ -643,14 +643,14 @@
     el.style.color = isError ? "#f87171" : "#4ade80";
   }
 
-  // ── Priority button color ─────────────────────────────────────────────
+  // ── Colore pulsante priorità ──────────────────────────────────────────
   document.getElementById("msg-priority").addEventListener("change", function () {
     const btn = document.getElementById("send-btn");
     btn.className = "send-btn" + (this.value === "urgent" ? " urgent" : "");
     btn.textContent = this.value === "urgent" ? "🚨 Broadcast Urgent" : "Broadcast";
   });
 
-  // ── UI Controls ──────────────────────────────────────────────────────────
+  // ── Controlli UI ──────────────────────────────────────────────────────────
   const UI_CONTROL_CATALOG = [
     { id: "btn_create_quotation", group: "Action Buttons", label: "Create Quotation",   desc: "Button that creates a Sales Order / Quotation for the repair" },
     { id: "btn_quality_alert",    group: "Action Buttons", label: "Quality Alert",       desc: "Button that creates a Quality Alert ticket" },
@@ -741,7 +741,7 @@
     `).join("");
   }
 
-  // ── Messages ────────────────────────────────────────────────────────────────────
+  // ── Messaggi ─────────────────────────────────────────────────────────────────────
   let messagesList = [];
 
   async function loadUsers() {
@@ -791,7 +791,7 @@
     try {
       await fetch(`${API}/messages/${id}`, { method: "DELETE" });
       await loadMessages();
-    } catch { /* silent */ }
+    } catch { /* silenzioso */ }
   }
 
   function renderMessages() {
@@ -825,7 +825,7 @@
     }).join("");
   }
 
-  // ── Extension ──────────────────────────────────────────────────────────────
+  // ── Estensione ──────────────────────────────────────────────────────────────
   async function forceReload() {
     const btn = document.getElementById("reload-btn");
     btn.disabled = true;
@@ -854,7 +854,7 @@
     }
   }
 
-  // ── Server Config ──────────────────────────────────────────────────
+  // ── Configurazione Server ──────────────────────────────────────────
   async function loadServerConfig() {
     try {
       const r = await fetch(`${API}/config`);
@@ -899,7 +899,7 @@
     }
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────
+  // ── Inizializzazione ──────────────────────────────────────────────────────
   document.getElementById("server-host").textContent = window.location.host;
   loadAnnouncements();
   loadBlocked();

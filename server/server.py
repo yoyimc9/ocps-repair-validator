@@ -16,13 +16,13 @@ from flask_cors import CORS
 from urllib.parse import urlparse
 
 app = Flask(__name__)
-CORS(app)  # Allow Chrome extension (chrome-extension://*) to call the API
+CORS(app)  # Permetti all'estensione Chrome (chrome-extension://*) di chiamare l'API
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ── Helpers ────────────────────────────────────────────────────────────────
+# ── Helper ─────────────────────────────────────────────────────────────────
 
 def _read(filename, default):
     path = os.path.join(DATA_DIR, filename)
@@ -36,14 +36,14 @@ def _write(filename, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-# ── Admin panel ────────────────────────────────────────────────────────────
+# ── Pannello admin ─────────────────────────────────────────────────────────
 
 @app.route("/")
 @app.route("/admin")
 def admin():
     return send_from_directory(BASE_DIR, "admin.html")
 
-# ── Announcements ──────────────────────────────────────────────────────────
+# ── Annunci ────────────────────────────────────────────────────────────────
 
 @app.route("/api/announcements", methods=["GET"])
 def get_announcements():
@@ -75,7 +75,7 @@ def ack_announcement(ann_id):
             return jsonify({"ok": True})
     abort(404)
 
-# ── Blocked serials ────────────────────────────────────────────────────────
+# ── Seriali bloccati ────────────────────────────────────────────────────────
 
 @app.route("/api/blocked", methods=["GET"])
 def get_blocked():
@@ -88,7 +88,7 @@ def put_blocked():
         abort(400)
     _write("blocked-serials.json", data)
     return jsonify({"ok": True})
-# ── UI Controls ───────────────────────────────────────────────────────────
+# ── Controlli UI ───────────────────────────────────────────────────────────
 
 @app.route("/api/ui-controls", methods=["GET"])
 def get_ui_controls():
@@ -101,10 +101,10 @@ def put_ui_controls():
         abort(400)
     _write("ui-controls.json", data)
     return jsonify({"ok": True})
-# ── Extension version (hash of extension files) ──────────────────────────
+# ── Versione estensione (hash dei file estensione) ─────────────────────────
 
 def _get_extension_dir():
-    """Returns the extension directory: env var > config.json > relative fallback."""
+    """Ritorna la directory dell'estensione: variabile ambiente > config.json > fallback relativo."""
     cfg = _read("config.json", {})
     return (os.environ.get("OCPS_EXTENSION_DIR") or
             cfg.get("extension_dir") or
@@ -148,7 +148,7 @@ def force_reload():
     _write("reload_nonce.json", {"nonce": uuid.uuid4().hex})
     return jsonify({"ok": True})
 
-# ── Server Config ─────────────────────────────────────────────────────────
+# ── Configurazione Server ──────────────────────────────────────────────────
 
 def _patch_url_in_files(ext_dir, old_url, new_url):
     """Rewrites URL strings in background.js, content.js, and manifest.json
@@ -214,7 +214,7 @@ def put_config():
         resp["warn"] = " | ".join(warns)
     return jsonify(resp)
 
-# ── Messages ──────────────────────────────────────────────────────────────
+# ── Messaggi ──────────────────────────────────────────────────────────────
 
 @app.route("/api/messages", methods=["POST"])
 def post_message():
@@ -239,7 +239,7 @@ def get_messages():
     msgs = _read("messages.json", {"messages": []})
     if not user:
         return jsonify(msgs)
-    # Record user as seen
+    # Registra utente come visto
     users = _read("users.json", {"users": []})
     if user not in users["users"]:
         users["users"].append(user)
@@ -284,7 +284,7 @@ def delete_message(msg_id):
     _write("messages.json", msgs)
     return jsonify({"ok": True})
 
-# ── Run ────────────────────────────────────────────────────────────────────
+# ── Avvio ──────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     _ext_dir = _get_extension_dir()

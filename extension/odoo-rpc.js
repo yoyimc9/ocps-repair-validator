@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   odoo-rpc.js — Lightweight Odoo JSON-RPC client for the browser.
-   Uses /web/dataset/call_kw with the session cookie (same origin).
+   odoo-rpc.js — Client JSON-RPC leggero per Odoo nel browser.
+   Usa /web/dataset/call_kw con il cookie di sessione (stessa origine).
    ═══════════════════════════════════════════════════════════════════════ */
 
 // eslint-disable-next-line no-unused-vars
@@ -10,7 +10,7 @@ const OdooRPC = (() => {
   let _uid = null;
   let _rpcId = 0;
 
-  /* ── Low-level web RPC (session-authenticated) ─────────────────── */
+  /* ── RPC web di basso livello (autenticato via sessione) ─────────────────── */
 
   async function callKw(model, method, args, kwargs) {
     _rpcId++;
@@ -42,7 +42,7 @@ const OdooRPC = (() => {
     return json.result;
   }
 
-  /* ── Session check ─────────────────────────────────────────────── */
+  /* ── Verifica sessione ─────────────────────────────────────────────── */
 
   async function ensureSession() {
     if (_uid) return _uid;
@@ -62,7 +62,7 @@ const OdooRPC = (() => {
     throw new Error("Not logged in to Odoo");
   }
 
-  /* ── High-level helpers ────────────────────────────────────────── */
+  /* ── Helper di alto livello ────────────────────────────────────── */
 
   async function searchRead(model, domain, fields, opts = {}) {
     await ensureSession();
@@ -85,7 +85,7 @@ const OdooRPC = (() => {
     });
   }
 
-  /* ── Many2one helpers ──────────────────────────────────────────── */
+  /* ── Helper Many2one ──────────────────────────────────────────── */
 
   function m2oId(val) {
     if (Array.isArray(val)) return val[0] || null;
@@ -99,7 +99,7 @@ const OdooRPC = (() => {
     return "";
   }
 
-  /* ── Public API ────────────────────────────────────────────────── */
+  /* ── API pubblica ──────────────────────────────────────────────── */
 
   return { callKw, ensureSession, searchRead, read, fieldsGet, m2oId, m2oName };
 })();
