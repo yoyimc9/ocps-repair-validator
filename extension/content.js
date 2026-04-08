@@ -748,16 +748,15 @@
         </div>`;
       document.body.appendChild(overlay);
 
-      overlay.querySelector(".ocps-modal-close").onclick = () => {
+      async function dismiss() {
         markSeen(announcement.id);
+        const user = await getOdooUsername();
+        if (user) ackAnnouncement(announcement.id, user);
         overlay.remove();
         resolve();
-      };
-      overlay.querySelector(".ocps-modal-ok").onclick = () => {
-        markSeen(announcement.id);
-        overlay.remove();
-        resolve();
-      };
+      }
+      overlay.querySelector(".ocps-modal-close").onclick = dismiss;
+      overlay.querySelector(".ocps-modal-ok").onclick = dismiss;
     });
   }
 
@@ -808,6 +807,16 @@
   async function ackMessage(msgId, user) {
     try {
       await fetch(`${MESSAGES_URL}/${msgId}/ack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user }),
+      });
+    } catch { /* silent */ }
+  }
+
+  async function ackAnnouncement(annId, user) {
+    try {
+      await fetch(`${ANNOUNCE_URL}/${annId}/ack`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user }),

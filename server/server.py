@@ -57,6 +57,24 @@ def put_announcements():
     _write("announcements.json", data)
     return jsonify({"ok": True})
 
+@app.route("/api/announcements/<ann_id>/ack", methods=["POST"])
+def ack_announcement(ann_id):
+    data = request.get_json(silent=True)
+    user = ((data or {}).get("user") or "").strip()
+    if not user:
+        abort(400)
+    anns = _read("announcements.json", {"announcements": []})
+    for a in anns["announcements"]:
+        if a.get("id") == ann_id:
+            if not any(r.get("user", "").lower() == user.lower() for r in a.get("ack_by", [])):
+                a.setdefault("ack_by", []).append({
+                    "user": user,
+                    "ts": datetime.datetime.utcnow().isoformat() + "Z",
+                })
+            _write("announcements.json", anns)
+            return jsonify({"ok": True})
+    abort(404)
+
 # ── Blocked serials ────────────────────────────────────────────────────────
 
 @app.route("/api/blocked", methods=["GET"])

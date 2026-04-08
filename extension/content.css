@@ -6,7 +6,8 @@
 
 /* -- Announcement Modal: Windows 98 Style ------------------------------ */
 #ocps-announce-modal,
-#ocps-blocked-modal {
+#ocps-blocked-modal,
+#ocps-message-modal {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.45);
