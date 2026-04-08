@@ -990,13 +990,18 @@ const Validator = (() => {
         : ` (${effectiveSo.name})`;
 
       // Ogni riparazione con un SO deve avere una riga Manodopera nel preventivo.
-      // Eccezioni: CHS (completamente coperto in garanzia), rework (la manodopera è sul SO della riparazione genitore).
+      // Eccezioni: CHS (completamente coperto in garanzia), rework (la manodopera è sul SO della riparazione genitore), No Repair Required (nessuna riparazione eseguita).
       const isRework = repair._is_rework || !!repair._parent_id;
       const hasLabor = effectiveSo._lines.some(l =>
         (OdooRPC.m2oName(l.product_id) || l.name || "").toLowerCase().includes("labor")
       );
-      if (!hasLabor && !hasChs && !isRework) {
+      if (!hasLabor && !hasChs && !isRework && !isNoRepair) {
         err("error", "ber", `BER: Quotation${soLabel} is missing a Labor line`);
+      }
+
+      // No Repair Required: il SO collegato deve essere cancellato — Odoo non permette di completare la riparazione con un SO attivo.
+      if (isNoRepair && effectiveSo.state !== "cancel") {
+        err("error", "ber", `No Repair Required: Quotation${soLabel} must be cancelled before completing the repair`);
       }
 
       // Rework: ogni parte OOW di tipo Add deve comparire nel SO genitore per essere fatturata correttamente.
