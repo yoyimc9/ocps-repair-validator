@@ -855,7 +855,18 @@ const Validator = (() => {
       }
     }
     if (isNoRepair && !isRtcTag) {
-      err("error", "workflow", "Resolution is 'No Repair Required' but missing 'Return to Customer' tag");
+      // Tag requirement depends on device location — each location implies a different workflow tag.
+      const loc = (repair._device_location || "").toLowerCase();
+      const isAtImaging = loc.includes("osc-imaging");
+      const isAtStaging = loc.includes("b-14") || loc.includes("staging") || loc.includes("contingence");
+      const isAtQc      = loc.includes("/qc");
+      if (isAtImaging && !tags.includes("transferred to imaging")) {
+        err("error", "workflow", "Resolution is 'No Repair Required' and device is at imaging — add the 'Transferred to Imaging' tag");
+      } else if (isAtStaging && !tags.includes("sent to contingence")) {
+        err("error", "workflow", "Resolution is 'No Repair Required' and device is at staging — add the 'Sent to Contingence' tag");
+      } else if (isAtQc && !tags.includes("qc completed")) {
+        err("error", "workflow", "Resolution is 'No Repair Required' and device is at QC — add the 'QC Completed' tag");
+      }
     }
     if (isNoRepair && parts.length > 0) {
       err("warning", "workflow", "Resolution is 'No Repair Required' but parts are attached — remove parts if device was not repaired");
