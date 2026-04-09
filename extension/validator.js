@@ -737,7 +737,7 @@ const Validator = (() => {
     const coverage = (repair._coverage_type || "").toLowerCase();
     const hasChs = chsKeywords.some(kw => coverage.includes(kw));
 
-    if (noteRefChs && !hasChs) {
+    if (noteRefChs && !hasChs && !isNoRepair && parts.length > 0) {
       err("error", "coverage",
         `Log note requests CHS incident / IW parts but selected coverage is '${repair._coverage_type || "none"}' — no CHS coverage is present`);
     }
