@@ -965,8 +965,10 @@ const Validator = (() => {
       }
     }
 
-    // La copertura ESDP richiede un preventivo collegato (a meno che la risoluzione non sia "no repair required")
-    if (repair._is_esdp && !isNoRepair && state !== "draft" && !effectiveSoId) {
+    // La copertura ESDP richiede un preventivo collegato solo se ci sono parti OOW — la copertura base (es. ND Dell)
+    // copre i malfunzionamenti in garanzia e non richiede preventivo se tutti i pezzi sono IW.
+    const hasOowParts = parts.some(p => (p.warranty_type || "").toUpperCase() === "OOW");
+    if (repair._is_esdp && !isNoRepair && state !== "draft" && !effectiveSoId && hasOowParts) {
       err("error", "ber",
         "ESDP coverage requires a linked Quotation/Sales Order — create and link a quotation before completing the repair");
     }
