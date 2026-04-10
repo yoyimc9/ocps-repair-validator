@@ -303,6 +303,34 @@ def get_messages():
 def get_users():
     return jsonify(_read("users.json", {"users": []}))
 
+# ── Heartbeat ──────────────────────────────────────────────────────────────
+
+@app.route("/api/heartbeat", methods=["POST"])
+def post_heartbeat():
+    data = request.get_json(silent=True) or {}
+    user = (data.get("user") or "").strip().lower()
+    if not user:
+        abort(400)
+    hb = _read("heartbeat.json", {})
+    hb[user] = datetime.datetime.utcnow().isoformat() + "Z"
+    _write("heartbeat.json", hb)
+    return jsonify({"ok": True})
+
+@app.route("/api/heartbeat", methods=["GET"])
+def get_heartbeat():
+    hb = _read("heartbeat.json", {})
+    now = datetime.datetime.utcnow()
+    result = []
+    for user, ts_str in hb.items():
+        try:
+            last_seen = datetime.datetime.fromisoformat(ts_str.replace("Z", ""))
+            seconds_ago = int((now - last_seen).total_seconds())
+            result.append({"user": user, "last_seen": ts_str, "seconds_ago": seconds_ago})
+        except Exception:
+            pass
+    result.sort(key=lambda x: x["seconds_ago"])
+    return jsonify({"users": result})
+
 @app.route("/api/messages/<msg_id>/ack", methods=["POST"])
 def ack_message(msg_id):
     data = request.get_json(silent=True)

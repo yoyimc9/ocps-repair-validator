@@ -611,6 +611,7 @@
   const BLOCKED_URL        = "http://10.56.65.139:3131/api/blocked";
   const UI_CONTROLS_URL    = "http://10.56.65.139:3131/api/ui-controls";
   const MESSAGES_URL       = "http://10.56.65.139:3131/api/messages";
+  const HEARTBEAT_URL      = "http://10.56.65.139:3131/api/heartbeat";
   const ANNOUNCE_INTERVAL  = 10000;
 
   let cachedBlockedSerials = [];
@@ -834,6 +835,15 @@
     } catch { return ""; }
   }
 
+  // Fire-and-forget — does NOT block or slow anything down.
+  async function sendHeartbeat() {
+    try {
+      const user = await getOdooUsername();
+      if (!user) return;
+      fetchOfficeApi(HEARTBEAT_URL, { method: "POST", json: { user } }).catch(() => {});
+    } catch { /* silenzioso */ }
+  }
+
   async function ackMessage(msgId, user) {
     try {
       await fetchOfficeApi(`${MESSAGES_URL}/${msgId}/ack`, {
@@ -921,6 +931,9 @@
     // Messaggi: controlla al caricamento e ogni minuto
     checkMessages();
     setInterval(checkMessages, ANNOUNCE_INTERVAL);
+    // Heartbeat: segnala che l'estensione è attiva (ogni 60 s)
+    sendHeartbeat();
+    setInterval(sendHeartbeat, 60000);
   }
 
   if (document.readyState === "complete") {
