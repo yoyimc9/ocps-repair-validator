@@ -116,6 +116,7 @@ async function pollEventsOnce() {
       await checkAnnouncementsBackground();
     } else if (event.kind === "messages") {
       await checkMessagesBackground();
+      pushMessageCheckToTabs();
     }
   }
 
@@ -186,6 +187,33 @@ async function markBgMessageNotified(id) {
   }
 }
 
+// Bring the first open Odoo tab to front so the user sees the message modal.
+async function focusOdooTab() {
+  try {
+    const tabs = await chrome.tabs.query({ url: "*://*.odoo.com/*" });
+    if (tabs.length > 0) {
+      await chrome.tabs.update(tabs[0].id, { active: true });
+      await chrome.windows.update(tabs[0].windowId, { focused: true });
+    }
+  } catch (_) { /* skip */ }
+}
+
+// Push an immediate message check to all Odoo content scripts (no 10 s wait).
+function pushMessageCheckToTabs() {
+  chrome.tabs.query({ url: "*://*.odoo.com/*" }, (tabs) => {
+    for (const tab of (tabs || [])) {
+      chrome.tabs.sendMessage(tab.id, { type: "ocps-check-messages" }).catch(() => {});
+    }
+  });
+}
+
+// Clicking the Windows toast brings the Odoo tab to front.
+chrome.notifications.onClicked.addListener((notifId) => {
+  if (!notifId.startsWith("ocps-msg-")) return;
+  chrome.notifications.clear(notifId);
+  focusOdooTab();
+});
+
 async function checkAnnouncementsBackground() {
   try {
     const resp = await fetch(ANNOUNCE_URL + "?_=" + Date.now());
@@ -234,6 +262,7 @@ async function checkMessagesBackground() {
     const data = await resp.json();
     const list = data.messages || [];
     const notifiedIds = await getBgNotifiedMessageIds();
+    let sentAny = false;
     for (const msg of list) {
       if (notifiedIds.includes(msg.id)) continue;
       chrome.notifications.create(`ocps-msg-${msg.id}`, {
@@ -246,6 +275,13 @@ async function checkMessagesBackground() {
       });
       await markBgMessageNotified(msg.id);
       notifiedIds.push(msg.id);
+      sentAny = true;
+    }
+    // When new messages arrived: focus the Odoo tab so the blocking modal is visible
+    // and push an immediate check so the modal appears without waiting for the next poll.
+    if (sentAny) {
+      await focusOdooTab();
+      pushMessageCheckToTabs();
     }
   } catch { /* silenzioso */ }
 }

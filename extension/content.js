@@ -880,6 +880,8 @@
   }
 
   async function checkMessages() {
+    // Don't interrupt a modal the user is currently reading.
+    if (document.getElementById("ocps-message-modal")) return;
     const user = await getOdooUsername();
     if (!user) return;
     try {
@@ -918,4 +920,12 @@
   } else {
     window.addEventListener("load", init);
   }
+
+  // Background pushes this when a new message arrives, so the modal appears
+  // immediately without waiting for the next 10 s poll interval.
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message && message.type === "ocps-check-messages") {
+      checkMessages();
+    }
+  });
 })();
