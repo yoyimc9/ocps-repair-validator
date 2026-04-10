@@ -156,7 +156,7 @@ def get_extension_version():
         h.update(nonce.encode())
     version = "unknown"
     try:
-        with open(os.path.join(ext_dir, "manifest.json"), "r", encoding="utf-8") as f:
+        with open(os.path.join(ext_dir, "manifest.json"), "r", encoding="utf-8-sig") as f:
             version = json.load(f).get("version", "unknown")
     except Exception:
         pass
