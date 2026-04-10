@@ -20,7 +20,7 @@ const USERNAME_KEY = "ocps_odoo_username";
 // Chrome può terminare e riavviare il SW in qualsiasi momento; ricreare l'allarme
 // qui garantisce che il polling continui attraverso quei riavvii.
 chrome.alarms.get(POLL_ALARM, (existing) => {
-  if (!existing) chrome.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
+  if (!existing) chrome.alarms.create(POLL_ALARM, { periodInMinutes: 0.5 });
 });
 
 async function checkVersion() {

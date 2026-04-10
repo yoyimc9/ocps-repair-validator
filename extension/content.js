@@ -611,7 +611,7 @@
   const BLOCKED_URL        = "http://10.56.65.139:3131/api/blocked";
   const UI_CONTROLS_URL    = "http://10.56.65.139:3131/api/ui-controls";
   const MESSAGES_URL       = "http://10.56.65.139:3131/api/messages";
-  const ANNOUNCE_INTERVAL  = 60000;
+  const ANNOUNCE_INTERVAL  = 10000;
 
   let cachedBlockedSerials = [];
   let cachedUiControls     = {};
