@@ -616,6 +616,36 @@
   let cachedBlockedSerials = [];
   let cachedUiControls     = {};
 
+  function fetchOfficeApi(url, options = {}) {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.runtime.sendMessage({
+          type: "ocps-api-fetch",
+          url,
+          method: options.method || "GET",
+          headers: options.headers || {},
+          json: options.json,
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response) {
+            reject(new Error("No response from background fetch bridge"));
+            return;
+          }
+          if (response.error) {
+            reject(new Error(response.error));
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   // ── Controlli UI ──────────────────────────────────────────────────────────
 
   // Finder elementi per ID controllo (deve corrispondere al catalogo in admin.html)
@@ -641,9 +671,9 @@
 
   async function loadUiControls() {
     try {
-      const resp = await fetch(UI_CONTROLS_URL + "?_=" + Date.now());
+      const resp = await fetchOfficeApi(UI_CONTROLS_URL + "?_=" + Date.now());
       if (!resp.ok) return;
-      const data = await resp.json();
+      const data = resp.data || {};
       cachedUiControls = data.controls || {};
       applyUiControls();
     } catch { /* silenzioso */ }
@@ -667,9 +697,9 @@
 
   async function loadBlockedSerials() {
     try {
-      const resp = await fetch(BLOCKED_URL + "?_=" + Date.now());
+      const resp = await fetchOfficeApi(BLOCKED_URL + "?_=" + Date.now());
       if (!resp.ok) return;
-      const data = await resp.json();
+      const data = resp.data || {};
       cachedBlockedSerials = (data.blocked || []).map(b => (b.serial || "").trim().toLowerCase());
     } catch { /* silenzioso */ }
   }
@@ -762,9 +792,9 @@
 
   async function checkAnnouncements() {
     try {
-      const resp = await fetch(ANNOUNCE_URL + "?_=" + Date.now());
+      const resp = await fetchOfficeApi(ANNOUNCE_URL + "?_=" + Date.now());
       if (!resp.ok) return;
-      const data = await resp.json();
+      const data = resp.data || {};
       const list = (data.announcements || []).filter(a => a.active !== false);
       if (!list.length) return;
 
@@ -806,20 +836,18 @@
 
   async function ackMessage(msgId, user) {
     try {
-      await fetch(`${MESSAGES_URL}/${msgId}/ack`, {
+      await fetchOfficeApi(`${MESSAGES_URL}/${msgId}/ack`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user }),
+        json: { user },
       });
     } catch { /* silenzioso */ }
   }
 
   async function ackAnnouncement(annId, user) {
     try {
-      await fetch(`${ANNOUNCE_URL}/${annId}/ack`, {
+      await fetchOfficeApi(`${ANNOUNCE_URL}/${annId}/ack`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user }),
+        json: { user },
       });
     } catch { /* silenzioso */ }
   }
@@ -855,9 +883,9 @@
     const user = await getOdooUsername();
     if (!user) return;
     try {
-      const resp = await fetch(`${MESSAGES_URL}?user=${encodeURIComponent(user)}&_=${Date.now()}`);
+      const resp = await fetchOfficeApi(`${MESSAGES_URL}?user=${encodeURIComponent(user)}&_=${Date.now()}`);
       if (!resp.ok) return;
-      const data = await resp.json();
+      const data = resp.data || {};
       const list = data.messages || [];
       for (const msg of list) {
         await showMessageModal(msg);

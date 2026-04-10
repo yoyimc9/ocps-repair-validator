@@ -16,6 +16,43 @@ const HASH_KEY     = "ocps_ext_hash";
 const SEEN_KEY     = "ocps_seen_announcements";
 const USERNAME_KEY = "ocps_odoo_username";
 
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (!message || message.type !== "ocps-api-fetch" || !message.url) return;
+
+  (async () => {
+    try {
+      const headers = { ...(message.headers || {}) };
+      const init = {
+        method: message.method || "GET",
+        headers,
+      };
+
+      if (message.json !== undefined) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+        init.body = JSON.stringify(message.json);
+      }
+
+      const resp = await fetch(message.url, init);
+      const text = await resp.text();
+
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+
+      sendResponse({ ok: resp.ok, status: resp.status, data });
+    } catch (error) {
+      sendResponse({ ok: false, error: String(error && error.message ? error.message : error) });
+    }
+  })();
+
+  return true;
+});
+
 // Assicura che l'allarme sia registrato ogni volta che il service worker parte.
 // Chrome può terminare e riavviare il SW in qualsiasi momento; ricreare l'allarme
 // qui garantisce che il polling continui attraverso quei riavvii.
