@@ -16,6 +16,7 @@ const POLL_ALARM   = "ocps-version-check";
 const HASH_KEY     = "ocps_ext_hash";
 const SEEN_KEY     = "ocps_seen_announcements";
 const USERNAME_KEY = "ocps_odoo_username";
+const BG_MSG_NOTIFIED_KEY = "ocps_bg_msg_notified";
 
 let lastEventSeq = 0;
 let eventLoopStarted = false;
@@ -171,6 +172,20 @@ async function markBgSeen(id) {
   }
 }
 
+async function getBgNotifiedMessageIds() {
+  const d = await chrome.storage.local.get(BG_MSG_NOTIFIED_KEY);
+  return (d && d[BG_MSG_NOTIFIED_KEY]) || [];
+}
+
+async function markBgMessageNotified(id) {
+  let ids = await getBgNotifiedMessageIds();
+  if (!ids.includes(id)) {
+    ids.push(id);
+    if (ids.length > 500) ids = ids.slice(-500);
+    await chrome.storage.local.set({ [BG_MSG_NOTIFIED_KEY]: ids });
+  }
+}
+
 async function checkAnnouncementsBackground() {
   try {
     const resp = await fetch(ANNOUNCE_URL + "?_=" + Date.now());
@@ -218,7 +233,9 @@ async function checkMessagesBackground() {
     if (!resp.ok) return;
     const data = await resp.json();
     const list = data.messages || [];
+    const notifiedIds = await getBgNotifiedMessageIds();
     for (const msg of list) {
+      if (notifiedIds.includes(msg.id)) continue;
       chrome.notifications.create(`ocps-msg-${msg.id}`, {
         type: "basic",
         iconUrl: "icons/icon48.png",
@@ -227,11 +244,8 @@ async function checkMessagesBackground() {
         priority: 1,
         requireInteraction: true,
       });
-      fetch(`${MESSAGES_URL}/${msg.id}/ack`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user }),
-      }).catch(() => {});
+      await markBgMessageNotified(msg.id);
+      notifiedIds.push(msg.id);
     }
   } catch { /* silenzioso */ }
 }
