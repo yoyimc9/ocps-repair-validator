@@ -10,6 +10,7 @@ import datetime
 import hashlib
 import json
 import os
+import threading
 import uuid
 from flask import Flask, jsonify, request, send_from_directory, abort
 from flask_cors import CORS
@@ -21,6 +22,11 @@ CORS(app)  # Permetti all'estensione Chrome (chrome-extension://*) di chiamare l
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
+
+EVENTS_COND = threading.Condition()
+EVENTS = []
+EVENTS_SEQ = 0
+EVENTS_MAX = 200
 
 # ── Helper ─────────────────────────────────────────────────────────────────
 
@@ -35,6 +41,21 @@ def _write(filename, data):
     path = os.path.join(DATA_DIR, filename)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+def _publish_event(kind, payload=None):
+    global EVENTS_SEQ
+    with EVENTS_COND:
+        EVENTS_SEQ += 1
+        EVENTS.append({
+            "seq": EVENTS_SEQ,
+            "kind": kind,
+            "payload": payload or {},
+            "ts": datetime.datetime.utcnow().isoformat() + "Z",
+        })
+        if len(EVENTS) > EVENTS_MAX:
+            del EVENTS[:-EVENTS_MAX]
+        EVENTS_COND.notify_all()
+        return EVENTS_SEQ
 
 # ── Pannello admin ─────────────────────────────────────────────────────────
 
@@ -55,6 +76,7 @@ def put_announcements():
     if data is None:
         abort(400)
     _write("announcements.json", data)
+    _publish_event("announcements")
     return jsonify({"ok": True})
 
 @app.route("/api/announcements/<ann_id>/ack", methods=["POST"])
@@ -214,6 +236,30 @@ def put_config():
         resp["warn"] = " | ".join(warns)
     return jsonify(resp)
 
+# ── Eventi push leggeri (long-poll) ───────────────────────────────────────
+
+@app.route("/api/events/poll", methods=["GET"])
+def poll_events():
+    try:
+        since = int((request.args.get("since") or "0").strip())
+    except ValueError:
+        since = 0
+
+    try:
+        timeout = float((request.args.get("timeout") or "25").strip())
+    except ValueError:
+        timeout = 25.0
+
+    timeout = max(0.0, min(timeout, 25.0))
+
+    with EVENTS_COND:
+        if EVENTS_SEQ <= since:
+            EVENTS_COND.wait(timeout=timeout)
+        events = [e for e in EVENTS if e["seq"] > since]
+        latest_seq = EVENTS[-1]["seq"] if EVENTS else EVENTS_SEQ
+
+    return jsonify({"events": events, "latest_seq": latest_seq})
+
 # ── Messaggi ──────────────────────────────────────────────────────────────
 
 @app.route("/api/messages", methods=["POST"])
@@ -231,6 +277,7 @@ def post_message():
     msgs = _read("messages.json", {"messages": []})
     msgs["messages"].insert(0, entry)
     _write("messages.json", msgs)
+    _publish_event("messages", {"id": entry["id"], "to": entry["to"]})
     return jsonify({"id": entry["id"]}), 201
 
 @app.route("/api/messages", methods=["GET"])
@@ -282,6 +329,7 @@ def delete_message(msg_id):
         abort(404)
     msgs["messages"] = updated
     _write("messages.json", msgs)
+    _publish_event("messages")
     return jsonify({"ok": True})
 
 # ── Avvio ──────────────────────────────────────────────────────────────────

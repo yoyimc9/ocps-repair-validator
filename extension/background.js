@@ -11,10 +11,14 @@
 const VERSION_URL  = "http://10.56.65.139:3131/api/extension/version";
 const ANNOUNCE_URL = "http://10.56.65.139:3131/api/announcements";
 const MESSAGES_URL = "http://10.56.65.139:3131/api/messages";
+const EVENTS_URL   = "http://10.56.65.139:3131/api/events/poll";
 const POLL_ALARM   = "ocps-version-check";
 const HASH_KEY     = "ocps_ext_hash";
 const SEEN_KEY     = "ocps_seen_announcements";
 const USERNAME_KEY = "ocps_odoo_username";
+
+let lastEventSeq = 0;
+let eventLoopStarted = false;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || message.type !== "ocps-api-fetch" || !message.url) return;
@@ -95,10 +99,51 @@ async function checkVersion() {
   }
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function pollEventsOnce() {
+  const resp = await fetch(`${EVENTS_URL}?since=${lastEventSeq}&timeout=25&_=${Date.now()}`);
+  if (!resp.ok) throw new Error(`Event poll failed: ${resp.status}`);
+
+  const data = await resp.json();
+  const events = data.events || [];
+  for (const event of events) {
+    if (typeof event.seq === "number" && event.seq > lastEventSeq) lastEventSeq = event.seq;
+    if (event.kind === "announcements") {
+      await checkAnnouncementsBackground();
+    } else if (event.kind === "messages") {
+      await checkMessagesBackground();
+    }
+  }
+
+  if (typeof data.latest_seq === "number" && data.latest_seq > lastEventSeq) {
+    lastEventSeq = data.latest_seq;
+  }
+}
+
+function ensureEventLoop() {
+  if (eventLoopStarted) return;
+  eventLoopStarted = true;
+
+  (async () => {
+    for (;;) {
+      try {
+        await pollEventsOnce();
+      } catch (error) {
+        console.warn("[OCPS] Event poll failed:", error && error.message ? error.message : error);
+        await sleep(5000);
+      }
+    }
+  })();
+}
+
 // Controlla subito all'avvio del service worker (copre i click "Ricarica" manuali in chrome://extensions).
 checkVersion();
 checkAnnouncementsBackground();
 checkMessagesBackground();
+ensureEventLoop();
 
 // Controlla ad ogni tick dell'allarme (ogni 60 s).
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -106,6 +151,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     checkVersion();
     checkAnnouncementsBackground();
     checkMessagesBackground();
+    ensureEventLoop();
   }
 });
 
