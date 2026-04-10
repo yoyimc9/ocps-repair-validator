@@ -277,10 +277,13 @@ async function checkMessagesBackground() {
       notifiedIds.push(msg.id);
       sentAny = true;
     }
-    // When new messages arrived: focus the Odoo tab so the blocking modal is visible
-    // and push an immediate check so the modal appears without waiting for the next poll.
+    // For brand-new messages: also bring the Odoo window to front.
     if (sentAny) {
       await focusOdooTab();
+    }
+    // Always push a modal check to Odoo tabs whenever there are unacked messages,
+    // so the modal appears even for messages already notified in a previous poll.
+    if (list.length > 0) {
       pushMessageCheckToTabs();
     }
   } catch { /* silenzioso */ }
