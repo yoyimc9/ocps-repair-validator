@@ -879,12 +879,18 @@
     });
   }
 
+  let checkMessagesBusy = false;
+
   async function checkMessages() {
-    // Don't interrupt a modal the user is currently reading.
+    // Synchronous lock — set before first await so concurrent callers see it immediately.
+    // Without this, multiple async callers (interval + background push + long-poll event)
+    // all pass the DOM guard before any of them has appended the modal.
+    if (checkMessagesBusy) return;
     if (document.getElementById("ocps-message-modal")) return;
-    const user = await getOdooUsername();
-    if (!user) return;
+    checkMessagesBusy = true;
     try {
+      const user = await getOdooUsername();
+      if (!user) return;
       const resp = await fetchOfficeApi(`${MESSAGES_URL}?user=${encodeURIComponent(user)}&_=${Date.now()}`);
       if (!resp.ok) return;
       const data = resp.data || {};
@@ -893,7 +899,9 @@
         await showMessageModal(msg);
         await ackMessage(msg.id, user);
       }
-    } catch { /* silenzioso */ }
+    } catch { /* silenzioso */ } finally {
+      checkMessagesBusy = false;
+    }
   }
   /* ── Inizializzazione ─────────────────────────────────────────── */
 
