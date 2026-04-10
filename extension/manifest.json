@@ -4,7 +4,7 @@
   "version": "2.0.1",
   "update_url": "https://yoyimc9.github.io/ocps-repair-validator/updates.xml",
   "description": "Standalone real-time repair validation on Odoo repair pages. Please for any Feddback reachout to Geordany directly since this is currently under development.",
-  "permissions": ["storage", "activeTab", "scripting", "alarms", "tabs"],
+  "permissions": ["storage", "activeTab", "scripting", "alarms", "tabs", "notifications"],
   "background": {
     "service_worker": "background.js"
   },
