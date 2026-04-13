@@ -819,10 +819,18 @@
       // Build a clean clone with image wrappers replaced by [Image N] placeholders
       const clone = editor.cloneNode(true);
       clone.querySelectorAll(".ocps-img-wrap").forEach((wrap, i) => {
-        wrap.replaceWith(document.createTextNode(`[Image ${i + 1}]`));
+        const p = document.createElement("p");
+        p.textContent = `[Image ${i + 1}]`;
+        wrap.replaceWith(p);
       });
+      // Attach clone off-screen so innerText respects block-level newlines
+      const tmpHolder = document.createElement("div");
+      tmpHolder.style.cssText = "position:fixed;left:-9999px;top:0;width:600px;visibility:hidden;";
+      tmpHolder.appendChild(clone);
+      document.body.appendChild(tmpHolder);
       const html = clone.innerHTML;
-      const text = clone.textContent || clone.innerText || "";
+      const text = clone.innerText;
+      document.body.removeChild(tmpHolder);
       try {
         await navigator.clipboard.write([
           new ClipboardItem({
@@ -831,19 +839,19 @@
           })
         ]);
       } catch {
-        // Fallback: select-all + execCommand on an off-screen temp div
-        const tmp = document.createElement("div");
-        tmp.style.cssText = "position:fixed;left:-9999px;top:0;";
-        tmp.appendChild(clone);
-        document.body.appendChild(tmp);
+        // Fallback: select-all + execCommand on the already-detached tmpHolder
+        const tmp2 = document.createElement("div");
+        tmp2.style.cssText = "position:fixed;left:-9999px;top:0;width:600px;";
+        tmp2.innerHTML = html;
+        document.body.appendChild(tmp2);
         const range = document.createRange();
-        range.selectNodeContents(tmp);
+        range.selectNodeContents(tmp2);
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
         document.execCommand("copy");
         sel.removeAllRanges();
-        document.body.removeChild(tmp);
+        document.body.removeChild(tmp2);
       }
       btn.textContent = "\u2705 Copied!";
       setTimeout(() => { btn.innerHTML = "&#128203; Copy Note"; }, 2000);
