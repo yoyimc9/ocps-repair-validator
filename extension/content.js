@@ -27,6 +27,7 @@
   let bodyObserverTimer = null;  // handle debounce per MutationObserver del body
   let lastUiControlsApply = 0;  // timestamp throttle per applyUiControls() nell'observer del body
   let formObserver = null;
+  let lastValidationData = null; // last successful validation result — used by the note modal
 
   /* ── Helper ──────────────────────────────────────────────────────── */
 
@@ -191,6 +192,7 @@
   }
 
   function renderResult(data) {
+    lastValidationData = data;
     const panel = ensurePanel();
     panel.classList.remove("ocps-hidden");
     const errs = (data.errors || []).filter((e) => e.severity === "error");
@@ -329,6 +331,7 @@
         <span class="ocps-status-badge">${statusIcon} ${statusText}</span>
         <span class="ocps-summary-meta">${esc(data.name || "")} &nbsp;|&nbsp; ${esc(data.state || "")} &nbsp;|&nbsp; ${esc(data.lot_name || "—")} &nbsp;|&nbsp; ${esc(data.device_location || "—")}${deliveredBadge}</span>
         <div class="ocps-summary-actions">
+          <button class="ocps-btn-icon ocps-note" title="Generate repair note">📝</button>
           <button class="ocps-btn-icon ocps-refresh" title="Re-validate">🔄</button>
           <button class="ocps-btn-icon ocps-toggle" title="Toggle details">${panel.classList.contains("ocps-collapsed") ? "▸" : "▾"}</button>
         </div>
@@ -355,6 +358,10 @@
       panel.classList.toggle("ocps-collapsed");
       panel.querySelector(".ocps-toggle").textContent =
         panel.classList.contains("ocps-collapsed") ? "▸" : "▾";
+    };
+    panel.querySelector(".ocps-note").onclick = (e) => {
+      e.stopPropagation();
+      if (lastValidationData) showNoteModal(lastValidationData);
     };
     panel.querySelector(".ocps-refresh").onclick = (e) => {
       e.stopPropagation();
@@ -730,6 +737,250 @@
       </div>`;
     document.body.appendChild(overlay);
     overlay.querySelector(".ocps-modal-ok").onclick = () => overlay.remove();
+  }
+
+  /* ── Repair Note Modal ────────────────────────────────────────────── */
+
+  function buildNoteTemplate(data) {
+    const today = new Date().toLocaleDateString();
+    const parts = data.parts || [];
+    let partsHtml = "";
+    if (parts.length) {
+      partsHtml = `<p><strong>Parts Used:</strong></p><ul>` +
+        parts.map(p => {
+          const wt = (p.warranty_type || "").toUpperCase();
+          return `<li>${esc(p.product_name)} (${wt}) &mdash; Qty: ${p.demand}</li>`;
+        }).join("") + `</ul>`;
+    } else {
+      partsHtml = `<p><strong>Parts Used:</strong> No parts added.</p>`;
+    }
+    return [
+      `<p><strong>Repair Order:</strong> ${esc(data.name || "\u2014")}</p>`,
+      `<p><strong>Serial Number:</strong> ${esc(data.lot_name || "\u2014")}</p>`,
+      data.ticket_name ? `<p><strong>Ticket:</strong> ${esc(data.ticket_name)}</p>` : "",
+      `<p><strong>Date:</strong> ${today}</p>`,
+      `<p><br></p>`,
+      partsHtml,
+      `<p><br></p>`,
+      `<p><strong>Work Performed:</strong></p><p><br></p>`,
+      `<p><strong>Technician Notes:</strong></p><p><br></p>`,
+    ].filter(Boolean).join("\n");
+  }
+
+  function showNoteModal(data) {
+    const existing = document.getElementById("ocps-note-modal");
+    if (existing) existing.remove();
+    const pastedImages = [];
+    const overlay = document.createElement("div");
+    overlay.id = "ocps-note-modal";
+    overlay.innerHTML = `
+      <div class="ocps-note-box">
+        <div class="ocps-note-header">
+          <span class="ocps-note-header-title">&#128221; Repair Note &mdash; ${esc(data.name || "\u2014")} | SN: ${esc(data.lot_name || "\u2014")}</span>
+          <button class="ocps-note-close" title="Close">&#10005;</button>
+        </div>
+        <div class="ocps-note-editor-wrap">
+          <div id="ocps-note-editor" contenteditable="true" spellcheck="true"></div>
+        </div>
+        <div class="ocps-note-toolbar">
+          <span class="ocps-note-hint">Ctrl+V to paste image &nbsp;&bull;&nbsp; images appear inline</span>
+          <button class="ocps-note-btn" id="ocps-note-camera-btn">&#128247; Take Photo</button>
+          <button class="ocps-note-btn" id="ocps-note-reset-btn">&#8635; Reset</button>
+          <button class="ocps-note-btn ocps-note-primary" id="ocps-note-copy-btn">&#128203; Copy Note</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const editor = overlay.querySelector("#ocps-note-editor");
+    editor.innerHTML = buildNoteTemplate(data);
+    // Close
+    overlay.querySelector(".ocps-note-close").onclick = () => overlay.remove();
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    // Image paste
+    editor.addEventListener("paste", (e) => {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (!items[i].type.startsWith("image/")) continue;
+        e.preventDefault();
+        const blob = items[i].getAsFile();
+        if (blob) insertNoteImageBlob(blob, editor, pastedImages);
+      }
+    });
+    // Camera
+    overlay.querySelector("#ocps-note-camera-btn").onclick = () => {
+      openCameraCapture((blob) => insertNoteImageBlob(blob, editor, pastedImages));
+    };
+    // Reset
+    overlay.querySelector("#ocps-note-reset-btn").onclick = () => {
+      if (confirm("Reset note to template? Images will be removed.")) {
+        editor.innerHTML = buildNoteTemplate(data);
+        pastedImages.length = 0;
+      }
+    };
+    // Copy to clipboard
+    overlay.querySelector("#ocps-note-copy-btn").onclick = async () => {
+      const btn = overlay.querySelector("#ocps-note-copy-btn");
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html":  new Blob([editor.innerHTML], { type: "text/html" }),
+            "text/plain": new Blob([editor.innerText],  { type: "text/plain" }),
+          })
+        ]);
+      } catch {
+        // Fallback: select-all + execCommand
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand("copy");
+        sel.removeAllRanges();
+      }
+      btn.textContent = "\u2705 Copied!";
+      setTimeout(() => { btn.innerHTML = "&#128203; Copy Note"; }, 2000);
+    };
+    // Place cursor at end
+    editor.focus();
+    const r = document.createRange();
+    r.selectNodeContents(editor);
+    r.collapse(false);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+
+  function insertNoteImageBlob(blob, editor, pastedImages) {
+    pastedImages.push(blob);
+    const idx = pastedImages.length - 1;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = document.createElement("img");
+      img.src = ev.target.result;
+      img.dataset.imageIndex = idx;
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(img);
+        range.setStartAfter(img);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        editor.appendChild(img);
+      }
+    };
+    reader.readAsDataURL(blob);
+  }
+
+  function openCameraCapture(onCapture) {
+    const existing = document.getElementById("ocps-camera-modal");
+    if (existing) existing.remove();
+    let stream = null;
+    let capturedBlob = null;
+    const overlay = document.createElement("div");
+    overlay.id = "ocps-camera-modal";
+    overlay.innerHTML = `
+      <div class="ocps-camera-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-weight:600;color:#f1f5f9;">&#128247; Camera Capture</span>
+          <button class="ocps-note-close" id="ocps-cam-close">&#10005;</button>
+        </div>
+        <div class="ocps-camera-preview-wrap">
+          <video id="ocps-camera-video" autoplay playsinline></video>
+          <canvas id="ocps-camera-canvas" style="display:none;"></canvas>
+          <img id="ocps-camera-static" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">
+          <div class="ocps-camera-corner tl"></div>
+          <div class="ocps-camera-corner tr"></div>
+          <div class="ocps-camera-corner bl"></div>
+          <div class="ocps-camera-corner br"></div>
+        </div>
+        <div class="ocps-camera-actions">
+          <button class="ocps-note-btn ocps-note-primary" id="ocps-cam-capture">&#128248; Capture</button>
+          <button class="ocps-note-btn" id="ocps-cam-retake" style="display:none;">&#128260; Retake</button>
+          <button class="ocps-note-btn ocps-note-primary" id="ocps-cam-use" style="display:none;">&#10003; Use Photo</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const video   = overlay.querySelector("#ocps-camera-video");
+    const canvas  = overlay.querySelector("#ocps-camera-canvas");
+    const staticImg = overlay.querySelector("#ocps-camera-static");
+    const captureBtn = overlay.querySelector("#ocps-cam-capture");
+    const retakeBtn  = overlay.querySelector("#ocps-cam-retake");
+    const useBtn     = overlay.querySelector("#ocps-cam-use");
+    function stopStream() {
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      video.srcObject = null;
+    }
+    function closeCamera() { stopStream(); overlay.remove(); }
+    overlay.querySelector("#ocps-cam-close").onclick = closeCamera;
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+        });
+        video.srcObject = stream;
+        video.style.display = "block";
+        staticImg.style.display = "none";
+        captureBtn.style.display = "";
+        retakeBtn.style.display  = "none";
+        useBtn.style.display     = "none";
+      } catch (err) {
+        const msgs = {
+          NotAllowedError:     "Camera access was denied. Allow camera permissions in your browser.",
+          NotFoundError:       "No camera found on this device.",
+          NotReadableError:    "Camera is in use by another application.",
+          OverconstrainedError: "Camera does not support the requested settings.",
+        };
+        alert(msgs[err.name] || `Camera error: ${err.message}`);
+        closeCamera();
+      }
+    }
+    captureBtn.onclick = () => {
+      canvas.width  = video.videoWidth  || 1280;
+      canvas.height = video.videoHeight || 720;
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        capturedBlob = blob;
+        stopStream();
+        const url = URL.createObjectURL(blob);
+        staticImg.src = url;
+        video.style.display      = "none";
+        staticImg.style.display  = "block";
+        captureBtn.style.display = "none";
+        retakeBtn.style.display  = "";
+        useBtn.style.display     = "";
+      }, "image/png");
+    };
+    retakeBtn.onclick = () => {
+      capturedBlob = null;
+      if (staticImg.src.startsWith("blob:")) URL.revokeObjectURL(staticImg.src);
+      startCamera();
+    };
+    useBtn.onclick = () => {
+      if (!capturedBlob) return;
+      compressImageBlob(capturedBlob, 0.85, 1920).then(compressed => {
+        if (staticImg.src.startsWith("blob:")) URL.revokeObjectURL(staticImg.src);
+        closeCamera();
+        onCapture(compressed);
+      });
+    };
+    startCamera();
+  }
+
+  async function compressImageBlob(blob, quality = 0.85, maxWidth = 1920) {
+    try {
+      const bmp = await createImageBitmap(blob);
+      const scale = Math.min(1, maxWidth / bmp.width);
+      const w = Math.round(bmp.width  * scale);
+      const h = Math.round(bmp.height * scale);
+      const cnv = document.createElement("canvas");
+      cnv.width = w; cnv.height = h;
+      cnv.getContext("2d").drawImage(bmp, 0, 0, w, h);
+      bmp.close();
+      return await new Promise(resolve => cnv.toBlob(b => resolve(b || blob), "image/jpeg", quality));
+    } catch { return blob; }
   }
 
   function getSeenIds() {

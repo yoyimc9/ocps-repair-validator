@@ -359,3 +359,187 @@
 .ocps-meta-delivered { color: #4ade80; font-weight: 600; }
 .ocps-prev-repair { color: #fbbf24; }
 .ocps-hist-prior { background: rgba(251,191,36,.1); color: #fbbf24; }
+
+/* ── Repair Note Modal ─────────────────────────────────────────────── */
+#ocps-note-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.ocps-note-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 740px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0,0,0,.7);
+  overflow: hidden;
+}
+
+.ocps-note-header {
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.ocps-note-header-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ocps-note-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color .15s, background .15s;
+}
+.ocps-note-close:hover { color: #f87171; background: rgba(239,68,68,.1); }
+
+.ocps-note-editor-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+#ocps-note-editor {
+  outline: none;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.75;
+  min-height: 200px;
+  word-break: break-word;
+}
+#ocps-note-editor p  { margin: 2px 0; }
+#ocps-note-editor ul { margin: 4px 0 4px 20px; padding: 0; }
+#ocps-note-editor li { margin: 1px 0; }
+#ocps-note-editor strong { color: #f1f5f9; }
+#ocps-note-editor img {
+  max-width: 100%;
+  border-radius: 6px;
+  display: block;
+  margin: 8px 0;
+  border: 1px solid #334155;
+}
+
+.ocps-note-toolbar {
+  background: #0f172a;
+  border-top: 1px solid #334155;
+  padding: 8px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ocps-note-hint {
+  font-size: 11px;
+  color: #475569;
+  flex: 1;
+}
+
+.ocps-note-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.ocps-note-btn:hover { background: #334155; border-color: #475569; }
+.ocps-note-btn.ocps-note-primary {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+.ocps-note-btn.ocps-note-primary:hover { background: #1d4ed8; }
+
+/* ── Camera Capture Modal ──────────────────────────────────────────── */
+#ocps-camera-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.ocps-camera-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 680px;
+  padding: 16px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.8);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ocps-camera-preview-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+#ocps-camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ocps-camera-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: #3b82f6;
+  border-style: solid;
+  pointer-events: none;
+}
+.ocps-camera-corner.tl { top: 10px;    left: 10px;    border-width: 3px 0 0 3px; }
+.ocps-camera-corner.tr { top: 10px;    right: 10px;   border-width: 3px 3px 0 0; }
+.ocps-camera-corner.bl { bottom: 10px; left: 10px;    border-width: 0 0 3px 3px; }
+.ocps-camera-corner.br { bottom: 10px; right: 10px;   border-width: 0 3px 3px 0; }
+
+.ocps-camera-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
