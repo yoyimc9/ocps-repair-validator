@@ -356,10 +356,10 @@
       }
     }
 
-    const pillCls = errorCount > 0 ? "ocps-error" : warnCount > 0 ? "ocps-warn" : "ocps-clean";
+    const pillCls = errorCount > 0 ? "ocps-error" : totalWarn > 0 ? "ocps-warn" : "ocps-clean";
     panel.className = pillCls;
     // Auto-espandi quando ci sono problemi
-    if (errorCount > 0 || warnCount > 0) panel.classList.remove("ocps-collapsed");
+    if (errorCount > 0 || totalWarn > 0) panel.classList.remove("ocps-collapsed");
     else panel.classList.add("ocps-collapsed");
 
     // Sezione Storico Dispositivo — mostra quando c'è qualsiasi move consegna/reso, o riparazione completata
