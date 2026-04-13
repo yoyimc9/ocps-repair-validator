@@ -191,22 +191,12 @@
         btn.style.setProperty("opacity", "0.45", "important");
         btn.style.setProperty("cursor", "not-allowed", "important");
         btn.title = "A tag must be set on this repair before putting it on hold";
-        if (!btn.parentElement.querySelector(".ocps-hold-msg")) {
-          const msg = document.createElement("span");
-          msg.className = "ocps-hold-msg";
-          msg.textContent = "\u26a0\ufe0f Tag required to put on hold";
-          msg.style.cssText =
-            "color:#f59e0b;font-size:12px;font-weight:600;padding:4px 10px;display:inline-flex;align-items:center;gap:4px;";
-          btn.parentElement.insertBefore(msg, btn.nextSibling);
-        }
       } else {
         btn.disabled = false;
         delete btn.dataset.ocpsHoldDisabled;
         btn.style.removeProperty("opacity");
         btn.style.removeProperty("cursor");
         btn.title = "";
-        const msg = btn.parentElement.querySelector(".ocps-hold-msg");
-        if (msg) msg.remove();
       }
     });
   }
@@ -325,7 +315,8 @@
 
     // Lista problemi
     let issuesHtml = "";
-    if (!isClean) {
+    const hasAnyTag = (data._tags_lower || []).length > 0;
+    if (!isClean || !hasAnyTag) {
       issuesHtml = `<ul class="ocps-issues">`;
       errs.forEach((e) => {
         issuesHtml += `<li class="ocps-issue-err"><span class="ocps-cat">${esc(e.category)}</span> ${esc(e.message)}</li>`;
@@ -333,6 +324,9 @@
       warns.forEach((e) => {
         issuesHtml += `<li class="ocps-issue-warn"><span class="ocps-cat">${esc(e.category)}</span> ${esc(e.message)}</li>`;
       });
+      if (!hasAnyTag) {
+        issuesHtml += `<li class="ocps-issue-warn"><span class="ocps-cat">workflow</span> A tag must be set before this repair can be put on hold</li>`;
+      }
       issuesHtml += `</ul>`;
     }
 
@@ -459,7 +453,6 @@
     setCreateQuotationHidden(isChs || isRework);
 
     // Disable Put on Hold unless the repair has at least one tag set
-    const hasAnyTag = (data._tags_lower || []).length > 0;
     setOnHoldDisabled(!hasAnyTag);
 
     // Applica override controlli UI admin (eseguito per ultimo per sovrapporsi alle decisioni del validatore)
