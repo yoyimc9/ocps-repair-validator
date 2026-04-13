@@ -741,33 +741,29 @@
 
   /* ── Repair Note Modal ────────────────────────────────────────────── */
 
-  function buildNoteTemplate(data) {
-    const today = new Date().toLocaleDateString();
+  function buildNoteTemplate(data, username) {
     const parts = data.parts || [];
     let partsHtml = "";
     if (parts.length) {
-      partsHtml = `<p><strong>Parts Used:</strong></p><ul>` +
-        parts.map(p => {
-          const wt = (p.warranty_type || "").toUpperCase();
-          return `<li>${esc(p.product_name)} (${wt}) &mdash; Qty: ${p.demand}</li>`;
-        }).join("") + `</ul>`;
+      partsHtml = `<p><strong>Parts Needed:</strong></p><p><br></p>` +
+        parts.map((p, i) => {
+          const desc = esc(p.coverage_type_name || p.warranty_type || "");
+          return `<p>Part ${i + 1} - ${esc(p.product_name)} - ${desc}</p>`;
+        }).join("\n") + `<p><br></p>`;
     } else {
-      partsHtml = `<p><strong>Parts Used:</strong> No parts added.</p>`;
+      partsHtml = `<p><strong>Parts Needed:</strong> No parts added.</p><p><br></p>`;
     }
     return [
-      `<p><strong>Repair Order:</strong> ${esc(data.name || "\u2014")}</p>`,
-      `<p><strong>Serial Number:</strong> ${esc(data.lot_name || "\u2014")}</p>`,
-      data.ticket_name ? `<p><strong>Ticket:</strong> ${esc(data.ticket_name)}</p>` : "",
-      `<p><strong>Date:</strong> ${today}</p>`,
+      `<p>User email: ${esc(username || "\u2014")}</p>`,
       `<p><br></p>`,
       partsHtml,
+      `<p><strong>Pictures:</strong></p>`,
       `<p><br></p>`,
-      `<p><strong>Work Performed:</strong></p><p><br></p>`,
-      `<p><strong>Technician Notes:</strong></p><p><br></p>`,
     ].filter(Boolean).join("\n");
   }
 
-  function showNoteModal(data) {
+  async function showNoteModal(data) {
+    const username = await getOdooUsername();
     const existing = document.getElementById("ocps-note-modal");
     if (existing) existing.remove();
     const pastedImages = [];
@@ -791,7 +787,7 @@
       </div>`;
     document.body.appendChild(overlay);
     const editor = overlay.querySelector("#ocps-note-editor");
-    editor.innerHTML = buildNoteTemplate(data);
+    editor.innerHTML = buildNoteTemplate(data, username);
     // Close
     overlay.querySelector(".ocps-note-close").onclick = () => overlay.remove();
     overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
@@ -813,29 +809,41 @@
     // Reset
     overlay.querySelector("#ocps-note-reset-btn").onclick = () => {
       if (confirm("Reset note to template? Images will be removed.")) {
-        editor.innerHTML = buildNoteTemplate(data);
+        editor.innerHTML = buildNoteTemplate(data, username);
         pastedImages.length = 0;
       }
     };
-    // Copy to clipboard
+    // Copy to clipboard (images are stripped — use the 📋 button on each photo to copy images)
     overlay.querySelector("#ocps-note-copy-btn").onclick = async () => {
       const btn = overlay.querySelector("#ocps-note-copy-btn");
+      // Build a clean clone with image wrappers replaced by [Image N] placeholders
+      const clone = editor.cloneNode(true);
+      clone.querySelectorAll(".ocps-img-wrap").forEach((wrap, i) => {
+        wrap.replaceWith(document.createTextNode(`[Image ${i + 1}]`));
+      });
+      const html = clone.innerHTML;
+      const text = clone.textContent || clone.innerText || "";
       try {
         await navigator.clipboard.write([
           new ClipboardItem({
-            "text/html":  new Blob([editor.innerHTML], { type: "text/html" }),
-            "text/plain": new Blob([editor.innerText],  { type: "text/plain" }),
+            "text/html":  new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
           })
         ]);
       } catch {
-        // Fallback: select-all + execCommand
+        // Fallback: select-all + execCommand on an off-screen temp div
+        const tmp = document.createElement("div");
+        tmp.style.cssText = "position:fixed;left:-9999px;top:0;";
+        tmp.appendChild(clone);
+        document.body.appendChild(tmp);
         const range = document.createRange();
-        range.selectNodeContents(editor);
+        range.selectNodeContents(tmp);
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
         document.execCommand("copy");
         sel.removeAllRanges();
+        document.body.removeChild(tmp);
       }
       btn.textContent = "\u2705 Copied!";
       setTimeout(() => { btn.innerHTML = "&#128203; Copy Note"; }, 2000);
@@ -855,20 +863,60 @@
     const idx = pastedImages.length - 1;
     const reader = new FileReader();
     reader.onload = (ev) => {
+      // Wrap image in a container so we can attach a per-image copy button
+      const wrap = document.createElement("span");
+      wrap.className = "ocps-img-wrap";
+      wrap.contentEditable = "false";
       const img = document.createElement("img");
       img.src = ev.target.result;
       img.dataset.imageIndex = idx;
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "ocps-img-copy-btn";
+      copyBtn.title = "Copy image to clipboard";
+      copyBtn.textContent = "\uD83D\uDCCB";
+      copyBtn.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          // Convert to PNG if needed (required by ClipboardItem)
+          let pngBlob = blob;
+          if (blob.type !== "image/png") {
+            pngBlob = await new Promise((resolve) => {
+              const bmp = new Image();
+              bmp.onload = () => {
+                const c = document.createElement("canvas");
+                c.width = bmp.naturalWidth;
+                c.height = bmp.naturalHeight;
+                c.getContext("2d").drawImage(bmp, 0, 0);
+                c.toBlob(resolve, "image/png");
+                URL.revokeObjectURL(bmp.src);
+              };
+              bmp.src = URL.createObjectURL(blob);
+            });
+          }
+          await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": pngBlob })
+          ]);
+          copyBtn.textContent = "\u2705";
+          setTimeout(() => { copyBtn.textContent = "\uD83D\uDCCB"; }, 1500);
+        } catch {
+          copyBtn.textContent = "\u274C";
+          setTimeout(() => { copyBtn.textContent = "\uD83D\uDCCB"; }, 1500);
+        }
+      };
+      wrap.appendChild(img);
+      wrap.appendChild(copyBtn);
       const sel = window.getSelection();
       if (sel && sel.rangeCount && editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
         const range = sel.getRangeAt(0);
         range.deleteContents();
-        range.insertNode(img);
-        range.setStartAfter(img);
+        range.insertNode(wrap);
+        range.setStartAfter(wrap);
         range.collapse(true);
         sel.removeAllRanges();
         sel.addRange(range);
       } else {
-        editor.appendChild(img);
+        editor.appendChild(wrap);
       }
     };
     reader.readAsDataURL(blob);

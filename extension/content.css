@@ -443,8 +443,32 @@
   max-width: 100%;
   border-radius: 6px;
   display: block;
-  margin: 8px 0;
   border: 1px solid #334155;
+}
+.ocps-img-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 8px 0;
+  line-height: 0;
+}
+.ocps-img-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,.6);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  padding: 3px 7px;
+  cursor: pointer;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 1;
+}
+.ocps-img-wrap:hover .ocps-img-copy-btn {
+  opacity: 1;
 }
 
 .ocps-note-toolbar {
