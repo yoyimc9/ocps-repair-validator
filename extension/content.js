@@ -442,10 +442,9 @@
     const isRework = !!(data.parent_repair_id);
     setCreateQuotationHidden(isChs || isRework);
 
-    // Hide Put on Hold unless the repair has a hold-required tag
-    const tagsLower = data._tags_lower || [];
-    const hasHoldTag = tagsLower.some(t => HOLD_TAG_KEYS.has(t));
-    setOnHoldHidden(!hasHoldTag);
+    // Hide Put on Hold unless the repair has at least one tag set
+    const hasAnyTag = (data._tags_lower || []).length > 0;
+    setOnHoldHidden(!hasAnyTag);
 
     // Applica override controlli UI admin (eseguito per ultimo per sovrapporsi alle decisioni del validatore)
     applyUiControls();
@@ -662,8 +661,7 @@
         }
         // Ri-applica visibilità pulsante On Hold
         if (lastValidationData) {
-          const tl = lastValidationData._tags_lower || [];
-          setOnHoldHidden(!tl.some(t => HOLD_TAG_KEYS.has(t)));
+          setOnHoldHidden((lastValidationData._tags_lower || []).length === 0);
         }
         // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {
