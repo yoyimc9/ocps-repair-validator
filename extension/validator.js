@@ -133,6 +133,8 @@ const Validator = (() => {
         break;
       }
     }
+    // Hardcoded fallback — tag_ids is the standard Odoo repair.order field name
+    if (!tagField && repairInfo["tag_ids"]) tagField = "tag_ids";
 
     // campo risoluzione
     let resolutionField = null;
@@ -180,12 +182,23 @@ const Validator = (() => {
    * ────────────────────────────────────────────────────────────────── */
 
   function readDomTags(fieldName) {
-    // Odoo renderizza i campi tag many2many come .o_tag_badge_text dentro [name="fieldname"]
+    // Primary: Odoo renders many2many tags as .o_tag_badge_text inside [name="fieldname"]
     const els = document.querySelectorAll(`[name="${fieldName}"] .o_tag_badge_text`);
     if (els.length) return Array.from(els).map(el => el.textContent.trim()).filter(Boolean);
-    // Fallback: badge/pillole
+    // Secondary: .o_tag span (Odoo 17 Owl variant) — strip delete buttons first
+    const tagSpans = document.querySelectorAll(`[name="${fieldName}"] .o_tag`);
+    if (tagSpans.length) return Array.from(tagSpans).map(el => {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll(".o_delete, .o_tag_destroy, button, a").forEach(d => d.remove());
+      return clone.textContent.trim();
+    }).filter(Boolean);
+    // Fallback: .badge — clone and strip delete buttons to avoid capturing "×"
     const badges = document.querySelectorAll(`[name="${fieldName}"] .badge`);
-    if (badges.length) return Array.from(badges).map(el => el.textContent.trim()).filter(Boolean);
+    if (badges.length) return Array.from(badges).map(el => {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll(".o_delete, .o_tag_destroy, button, a").forEach(d => d.remove());
+      return clone.textContent.trim();
+    }).filter(Boolean);
     return null;
   }
 

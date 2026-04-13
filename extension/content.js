@@ -315,7 +315,11 @@
 
     // Lista problemi
     let issuesHtml = "";
-    const hasAnyTag = (data._tags_lower || []).length > 0;
+    // DOM fallback: count visible tag badges directly — guards against tagField mis-detection
+    const domTagCount = document.querySelectorAll(
+      '[name="tag_ids"] .o_tag_badge_text, [name="tag_ids"] .o_tag, [name="tag_ids"] .badge'
+    ).length;
+    const hasAnyTag = (data._tags_lower || []).length > 0 || domTagCount > 0;
     const needsTagWarning = !hasAnyTag && !["on_hold", "done"].includes(data.state);
     if (!isClean || needsTagWarning) {
       issuesHtml = `<ul class="ocps-issues">`;
