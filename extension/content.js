@@ -816,20 +816,28 @@
     // Copy to clipboard (images are stripped — use the 📋 button on each photo to copy images)
     overlay.querySelector("#ocps-note-copy-btn").onclick = async () => {
       const btn = overlay.querySelector("#ocps-note-copy-btn");
-      // Build a clean clone with image wrappers replaced by [Image N] placeholders
-      const clone = editor.cloneNode(true);
-      clone.querySelectorAll(".ocps-img-wrap").forEach((wrap, i) => {
+      // htmlClone: keep <img> data URIs inline, just remove the copy-button overlay
+      const htmlClone = editor.cloneNode(true);
+      htmlClone.querySelectorAll(".ocps-img-wrap").forEach((wrap) => {
+        wrap.querySelectorAll(".ocps-img-copy-btn").forEach(b => b.remove());
+        const img = wrap.querySelector("img");
+        if (img) wrap.replaceWith(img);
+        else wrap.remove();
+      });
+      // textClone: replace image wraps with [Image N] paragraph placeholders
+      const textClone = editor.cloneNode(true);
+      textClone.querySelectorAll(".ocps-img-wrap").forEach((wrap, i) => {
         const p = document.createElement("p");
         p.textContent = `[Image ${i + 1}]`;
         wrap.replaceWith(p);
       });
-      // Attach clone off-screen so innerText respects block-level newlines
+      // Attach textClone off-screen so innerText respects block-level newlines
       const tmpHolder = document.createElement("div");
       tmpHolder.style.cssText = "position:fixed;left:-9999px;top:0;width:600px;visibility:hidden;";
-      tmpHolder.appendChild(clone);
+      tmpHolder.appendChild(textClone);
       document.body.appendChild(tmpHolder);
-      const html = clone.innerHTML;
-      const text = clone.innerText;
+      const html = htmlClone.innerHTML;
+      const text = textClone.innerText;
       document.body.removeChild(tmpHolder);
       try {
         await navigator.clipboard.write([
