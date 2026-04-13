@@ -182,15 +182,31 @@
     return buttons;
   }
 
-  function setOnHoldHidden(hide) {
+  function setOnHoldDisabled(disable) {
     const buttons = findOnHoldButtons();
     buttons.forEach((btn) => {
-      if (hide) {
-        btn.style.setProperty("display", "none", "important");
-        btn.dataset.ocpsHoldHidden = "1";
+      if (disable) {
+        btn.disabled = true;
+        btn.dataset.ocpsHoldDisabled = "1";
+        btn.style.setProperty("opacity", "0.45", "important");
+        btn.style.setProperty("cursor", "not-allowed", "important");
+        btn.title = "A tag must be set on this repair before putting it on hold";
+        if (!btn.parentElement.querySelector(".ocps-hold-msg")) {
+          const msg = document.createElement("span");
+          msg.className = "ocps-hold-msg";
+          msg.textContent = "\u26a0\ufe0f Tag required to put on hold";
+          msg.style.cssText =
+            "color:#f59e0b;font-size:12px;font-weight:600;padding:4px 10px;display:inline-flex;align-items:center;gap:4px;";
+          btn.parentElement.insertBefore(msg, btn.nextSibling);
+        }
       } else {
-        btn.style.removeProperty("display");
-        delete btn.dataset.ocpsHoldHidden;
+        btn.disabled = false;
+        delete btn.dataset.ocpsHoldDisabled;
+        btn.style.removeProperty("opacity");
+        btn.style.removeProperty("cursor");
+        btn.title = "";
+        const msg = btn.parentElement.querySelector(".ocps-hold-msg");
+        if (msg) msg.remove();
       }
     });
   }
@@ -442,9 +458,9 @@
     const isRework = !!(data.parent_repair_id);
     setCreateQuotationHidden(isChs || isRework);
 
-    // Hide Put on Hold unless the repair has at least one tag set
+    // Disable Put on Hold unless the repair has at least one tag set
     const hasAnyTag = (data._tags_lower || []).length > 0;
-    setOnHoldHidden(!hasAnyTag);
+    setOnHoldDisabled(!hasAnyTag);
 
     // Applica override controlli UI admin (eseguito per ultimo per sovrapporsi alle decisioni del validatore)
     applyUiControls();
@@ -659,9 +675,9 @@
           const errCount = p.querySelectorAll(".ocps-issue-err").length;
           setEndRepairHidden(errCount > 0, errCount);
         }
-        // Ri-applica visibilità pulsante On Hold
+        // Ri-applica stato pulsante On Hold
         if (lastValidationData) {
-          setOnHoldHidden((lastValidationData._tags_lower || []).length === 0);
+          setOnHoldDisabled((lastValidationData._tags_lower || []).length === 0);
         }
         // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {
