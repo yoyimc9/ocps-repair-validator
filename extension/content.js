@@ -143,6 +143,58 @@
     });
   }
 
+  /* ── On Hold button management ─────────────────────────────── */
+
+  // HOLD_REQUIRED_TAGS keys (from validator.js) — any of these tags allow Put on Hold
+  const HOLD_TAG_KEYS = new Set([
+    "pending order parts", "pending order part(s)",
+    "pending to order part", "pending to order part(s)",
+    "pending customer quote approval",
+    "ber-threshold met", "ber-pending approval",
+    "ber-parts requested", "ber-part(s) requested",
+    "doa part", "part doa",
+    "device box requested",
+    "waiting on replacement device",
+    "shipped to oem",
+  ]);
+
+  function findOnHoldButtons() {
+    const buttons = [];
+    document.querySelectorAll("button").forEach((btn) => {
+      const name = btn.getAttribute("name") || "";
+      const text = (btn.textContent || "").trim().toLowerCase();
+      if (
+        name === "action_repair_done" && false  // placeholder — matched by text only
+        || name === "action_put_on_hold"
+        || name === "action_on_hold"
+        || text === "put on hold"
+        || text === "on hold"
+      ) {
+        buttons.push(btn);
+      }
+    });
+    document.querySelectorAll(".o_statusbar_buttons button, .o_form_statusbar button").forEach((btn) => {
+      const text = (btn.textContent || "").trim().toLowerCase();
+      if ((text === "put on hold" || text === "on hold") && !buttons.includes(btn)) {
+        buttons.push(btn);
+      }
+    });
+    return buttons;
+  }
+
+  function setOnHoldHidden(hide) {
+    const buttons = findOnHoldButtons();
+    buttons.forEach((btn) => {
+      if (hide) {
+        btn.style.setProperty("display", "none", "important");
+        btn.dataset.ocpsHoldHidden = "1";
+      } else {
+        btn.style.removeProperty("display");
+        delete btn.dataset.ocpsHoldHidden;
+      }
+    });
+  }
+
   /* ── Panel rendering ──────────────────────────────────────────── */
 
   function waitForElement(selector, timeout = 5000) {
@@ -390,6 +442,11 @@
     const isRework = !!(data.parent_repair_id);
     setCreateQuotationHidden(isChs || isRework);
 
+    // Hide Put on Hold unless the repair has a hold-required tag
+    const tagsLower = data._tags_lower || [];
+    const hasHoldTag = tagsLower.some(t => HOLD_TAG_KEYS.has(t));
+    setOnHoldHidden(!hasHoldTag);
+
     // Applica override controlli UI admin (eseguito per ultimo per sovrapporsi alle decisioni del validatore)
     applyUiControls();
 
@@ -602,6 +659,11 @@
         if (p) {
           const errCount = p.querySelectorAll(".ocps-issue-err").length;
           setEndRepairHidden(errCount > 0, errCount);
+        }
+        // Ri-applica visibilità pulsante On Hold
+        if (lastValidationData) {
+          const tl = lastValidationData._tags_lower || [];
+          setOnHoldHidden(!tl.some(t => HOLD_TAG_KEYS.has(t)));
         }
         // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {
