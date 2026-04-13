@@ -259,12 +259,20 @@
     const warnCount = warns.length;
     const isClean = errorCount === 0 && warnCount === 0;
 
-    const statusCls = errorCount > 0 ? "ocps-error" : warnCount > 0 ? "ocps-warn" : "ocps-clean";
-    const statusIcon = errorCount > 0 ? "❌" : warnCount > 0 ? "⚠️" : "✅";
+    // Compute tag warning early so it can influence the status badge
+    const domTagCount = document.querySelectorAll(
+      '[name="tag_ids"] .o_tag_badge_text, [name="tag_ids"] .o_tag, [name="tag_ids"] .badge'
+    ).length;
+    const hasAnyTag = (data._tags_lower || []).length > 0 || domTagCount > 0;
+    const needsTagWarning = !hasAnyTag && !["on_hold", "done"].includes(data.state);
+
+    const totalWarn = warnCount + (needsTagWarning ? 1 : 0);
+    const statusCls = errorCount > 0 ? "ocps-error" : totalWarn > 0 ? "ocps-warn" : "ocps-clean";
+    const statusIcon = errorCount > 0 ? "❌" : totalWarn > 0 ? "⚠️" : "✅";
     const statusText = errorCount > 0
-      ? `${errorCount} Error${errorCount !== 1 ? "s" : ""}${warnCount ? `, ${warnCount} Warning${warnCount !== 1 ? "s" : ""}` : ""}`
-      : warnCount > 0
-        ? `${warnCount} Warning${warnCount !== 1 ? "s" : ""}`
+      ? `${errorCount} Error${errorCount !== 1 ? "s" : ""}${totalWarn ? `, ${totalWarn} Warning${totalWarn !== 1 ? "s" : ""}` : ""}`
+      : totalWarn > 0
+        ? `${totalWarn} Warning${totalWarn !== 1 ? "s" : ""}`
         : "All Checks Passed";
 
     // Info ticket
@@ -315,12 +323,6 @@
 
     // Lista problemi
     let issuesHtml = "";
-    // DOM fallback: count visible tag badges directly — guards against tagField mis-detection
-    const domTagCount = document.querySelectorAll(
-      '[name="tag_ids"] .o_tag_badge_text, [name="tag_ids"] .o_tag, [name="tag_ids"] .badge'
-    ).length;
-    const hasAnyTag = (data._tags_lower || []).length > 0 || domTagCount > 0;
-    const needsTagWarning = !hasAnyTag && !["on_hold", "done"].includes(data.state);
     if (!isClean || needsTagWarning) {
       issuesHtml = `<ul class="ocps-issues">`;
       errs.forEach((e) => {
