@@ -316,7 +316,8 @@
     // Lista problemi
     let issuesHtml = "";
     const hasAnyTag = (data._tags_lower || []).length > 0;
-    if (!isClean || !hasAnyTag) {
+    const needsTagWarning = !hasAnyTag && !["on_hold", "done"].includes(data.state);
+    if (!isClean || needsTagWarning) {
       issuesHtml = `<ul class="ocps-issues">`;
       errs.forEach((e) => {
         issuesHtml += `<li class="ocps-issue-err"><span class="ocps-cat">${esc(e.category)}</span> ${esc(e.message)}</li>`;
@@ -324,7 +325,7 @@
       warns.forEach((e) => {
         issuesHtml += `<li class="ocps-issue-warn"><span class="ocps-cat">${esc(e.category)}</span> ${esc(e.message)}</li>`;
       });
-      if (!hasAnyTag) {
+      if (needsTagWarning) {
         issuesHtml += `<li class="ocps-issue-warn"><span class="ocps-cat">workflow</span> A tag must be set before this repair can be put on hold</li>`;
       }
       issuesHtml += `</ul>`;
@@ -452,8 +453,8 @@
     const isRework = !!(data.parent_repair_id);
     setCreateQuotationHidden(isChs || isRework);
 
-    // Disable Put on Hold unless the repair has at least one tag set
-    setOnHoldDisabled(!hasAnyTag);
+    // Disable Put on Hold unless the repair has at least one tag set (skip when already on_hold/done)
+    setOnHoldDisabled(needsTagWarning);
 
     // Applica override controlli UI admin (eseguito per ultimo per sovrapporsi alle decisioni del validatore)
     applyUiControls();
@@ -670,7 +671,9 @@
         }
         // Ri-applica stato pulsante On Hold
         if (lastValidationData) {
-          setOnHoldDisabled((lastValidationData._tags_lower || []).length === 0);
+          const tl = lastValidationData._tags_lower || [];
+          const st = lastValidationData.state || "";
+          setOnHoldDisabled(tl.length === 0 && !["on_hold", "done"].includes(st));
         }
         // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {
