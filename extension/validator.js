@@ -746,7 +746,10 @@ const Validator = (() => {
 
     const allNoteText = nonEmpty.join(" ").toLowerCase();
     const chsKeywords = ["chs", "comprehensive", "complete care", "completecare"];
-    const noteRefChs = chsKeywords.some(kw => allNoteText.includes(kw));
+    const noteRefChs = [
+      "chs incident", "chs repair", "chs coverage", "chs billing", "chs claim",
+      "complete care", "completecare",
+    ].some(kw => allNoteText.includes(kw));
     const coverage = (repair._coverage_type || "").toLowerCase();
     const hasChs = chsKeywords.some(kw => coverage.includes(kw));
 
@@ -930,10 +933,14 @@ const Validator = (() => {
     /* ── Validazione BER ────────────────────────────────────────── */
 
     const oowParts = parts.filter(p => p.warranty_type === "OOW");
-    // Parti OOW il cui tipo copertura NON è CHS — queste sono veramente fatturabili e necessitano un preventivo
-    const billedOowParts = oowParts.filter(p =>
-      !chsKeywords.some(kw => (p.coverage_type_name || "").toLowerCase().includes(kw))
-    );
+    // Parti OOW il cui tipo copertura NON è CHS/ESDP/ND-Dell — queste sono veramente fatturabili e necessitano un preventivo
+    const billedOowParts = oowParts.filter(p => {
+      const covLower = (p.coverage_type_name || "").toLowerCase();
+      const isChsCovered  = chsKeywords.some(kw => covLower.includes(kw));
+      const isEsdpCovered = covLower.includes("esdp");
+      const isNdCovered   = covLower.includes("nd") || covLower.includes("dell");
+      return !isChsCovered && !isEsdpCovered && !isNdCovered;
+    });
     const effectiveSo   = repair._effective_so;
     const effectiveSoId = repair._effective_so_id;
 
