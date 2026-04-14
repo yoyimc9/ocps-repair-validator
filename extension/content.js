@@ -925,7 +925,7 @@
           })
         ]);
       } catch {
-        // Fallback: execCommand — element must be in viewport (not off-screen/invisible)
+        // Fallback: execCommand copy — element must be in-viewport (not off-screen/hidden)
         const tmp2 = document.createElement("div");
         tmp2.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1;";
         tmp2.innerHTML = html;
