@@ -1,0 +1,569 @@
+﻿/* OCPS Repair Validator - Stili Content Script */
+
+/* -- Controlli UI (nascondi/disabilita da admin) --------------------------- */
+.ocps-ui-hidden  { display: none !important; }
+.ocps-ui-disabled { opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
+
+/* -- Modale Annuncio: Stile Windows 98 ------------------------------ */
+#ocps-announce-modal,
+#ocps-blocked-modal,
+#ocps-message-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ocps-modal-box {
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  max-width: 420px;
+  width: 92%;
+  font-family: 'MS Sans Serif', 'Tahoma', Arial, sans-serif;
+  font-size: 12px;
+  color: #000;
+  box-shadow: 4px 4px 0 #000;
+  image-rendering: pixelated;
+}
+
+.ocps-modal-titlebar {
+  background: linear-gradient(to right, #000080, #1084d0);
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 3px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.ocps-modal-titlebar-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ocps-modal-urgent .ocps-modal-titlebar {
+  background: linear-gradient(to right, #8b0000, #cc0000);
+}
+
+.ocps-modal-close {
+  background: #c0c0c0;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #808080;
+  border-bottom: 1px solid #808080;
+  color: #000;
+  font-size: 10px;
+  font-weight: bold;
+  width: 16px;
+  height: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  font-family: 'MS Sans Serif', Arial, sans-serif;
+}
+.ocps-modal-close:active {
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+}
+
+.ocps-modal-body {
+  padding: 16px 14px 10px 14px;
+  font-size: 12px;
+  color: #000;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ocps-modal-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ocps-modal-footer {
+  padding: 8px 14px 12px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ocps-modal-ok {
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  color: #000;
+  padding: 4px 24px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'MS Sans Serif', 'Tahoma', Arial, sans-serif;
+  min-width: 75px;
+}
+.ocps-modal-ok:active {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  padding-top: 5px;
+  padding-left: 25px;
+}
+
+/* -- Banner: iniettato tra pannello di controllo e scheda form ------------- */
+#ocps-validator-panel {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+  border-left: 4px solid #64748b;
+  background: rgba(100,116,139,.08);
+  padding: 8px 14px;
+  transition: border-color .2s;
+}
+
+#ocps-validator-panel.ocps-hidden  { display: none !important; }
+#ocps-validator-panel.ocps-error   { border-left-color: #ef4444; background: rgba(239,68,68,.07); }
+#ocps-validator-panel.ocps-warn    { border-left-color: #f59e0b; background: rgba(245,158,11,.07); }
+#ocps-validator-panel.ocps-clean   { border-left-color: #22c55e; background: rgba(34,197,94,.07); }
+#ocps-validator-panel.ocps-loading { border-left-color: #3b82f6; background: rgba(59,130,246,.07); }
+
+/* -- Riga riepilogo sempre visibile --------------------------------------- */
+.ocps-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ocps-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ocps-error  .ocps-status-badge { background: rgba(239,68,68,.18);  color: #f87171; border: 1px solid rgba(239,68,68,.4); }
+.ocps-warn   .ocps-status-badge { background: rgba(245,158,11,.18); color: #fbbf24; border: 1px solid rgba(245,158,11,.4); }
+.ocps-clean  .ocps-status-badge { background: rgba(34,197,94,.18);  color: #4ade80; border: 1px solid rgba(34,197,94,.4); }
+.ocps-loading .ocps-status-badge { background: rgba(59,130,246,.18); color: #60a5fa; border: 1px solid rgba(59,130,246,.4); }
+
+.ocps-summary-meta {
+  font-size: 12px;
+  opacity: 0.6;
+  flex: 1;
+}
+
+.ocps-summary-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.ocps-btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.45;
+  font-size: 13px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: opacity .15s;
+}
+.ocps-btn-icon:hover { opacity: 1; }
+
+/* -- Corpo dettagli (nascosto quando compresso) ------------------------------ */
+.ocps-body {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(128,128,128,.15);
+}
+.ocps-collapsed .ocps-body { display: none; }
+
+/* -- Riga ticket ------------------------------------------------------- */
+.ocps-ticket {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.ocps-ticket strong { color: #60a5fa; opacity: 1; }
+
+/* -- Riepilogo parti ---------------------------------------------------- */
+.ocps-parts-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.ocps-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.ocps-iw  { background: rgba(34,197,94,.2);  color: #4ade80; }
+.ocps-oow { background: rgba(245,158,11,.2); color: #fbbf24; }
+.ocps-ber { background: rgba(239,68,68,.2);  color: #f87171; }
+
+/* -- Lista problemi ------------------------------------------------------ */
+.ocps-issues { list-style: none; padding: 0; margin: 0 0 4px 0; }
+
+.ocps-issues li {
+  padding: 5px 10px;
+  margin-bottom: 3px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ocps-issue-err  { background: rgba(239,68,68,.12);  border-left: 3px solid #f87171; }
+.ocps-issue-warn { background: rgba(245,158,11,.12); border-left: 3px solid #fbbf24; }
+
+.ocps-cat {
+  background: rgba(128,128,128,.2);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* -- Parti non consumate ------------------------------------------------- */
+.ocps-parts-detail {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(245,158,11,.1);
+  border: 1px solid rgba(245,158,11,.25);
+  border-radius: 5px;
+  font-size: 12px;
+}
+.ocps-parts-detail strong { color: #fbbf24; }
+.ocps-parts-detail ul { margin: 3px 0 0 14px; padding: 0; }
+.ocps-parts-detail li { margin-bottom: 2px; }
+
+/* -- Stato errore ------------------------------------------------------ */
+.ocps-err-msg { color: #f87171; font-size: 12px; margin-bottom: 8px; }
+.ocps-retry-btn {
+  background: rgba(59,130,246,.15);
+  border: 1px solid rgba(59,130,246,.4);
+  color: #60a5fa;
+  padding: 3px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ocps-retry-btn:hover { background: rgba(59,130,246,.25); }
+
+/* -- Spinner ---------------------------------------------------------- */
+.ocps-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(128,128,128,.3);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: ocps-spin .7s linear infinite;
+  display: inline-block;
+}
+@keyframes ocps-spin { to { transform: rotate(360deg); } }
+
+/* -- Messaggio End Repair bloccato --------------------------------------- */
+.ocps-blocked-msg {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  color: #f87171 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 3px 10px !important;
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.3);
+  border-radius: 4px;
+}
+
+/* -- Sezione Storico Dispositivo ------------------------------------------ */
+.ocps-history-section {
+  margin-top: 8px;
+  border-left: 3px solid rgba(96,165,250,.4);
+  background: rgba(96,165,250,.05);
+  border-radius: 0 4px 4px 0;
+  padding: 4px 8px 4px 10px;
+  font-size: 12px;
+}
+
+.ocps-history-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.65;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 0;
+  transition: opacity .15s;
+}
+.ocps-history-header:hover { opacity: 1; }
+
+.ocps-hist-arrow { font-size: 10px; }
+
+.ocps-hist-collapsed .ocps-history-body { display: none; }
+.ocps-history-body { padding-top: 5px; display: flex; flex-direction: column; gap: 3px; }
+
+.ocps-history-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ocps-hist-ok      { background: rgba(34,197,94,.1);  color: #4ade80; }
+.ocps-hist-pending { background: rgba(245,158,11,.1); color: #fbbf24; }
+.ocps-hist-return  { background: rgba(139,92,246,.1); color: #a78bfa; }
+
+/* -- Ultima consegna ticket inline ---------------------------------- */
+.ocps-last-delivery { color: #60a5fa; }
+.ocps-last-delivery strong { color: #93c5fd; }
+.ocps-pick-ref { opacity: 0.65; font-size: 11px; }
+
+/* -- Badge consegna (barra riepilogo + sezione storico) ------------------- */
+.ocps-meta-delivered { color: #4ade80; font-weight: 600; }
+.ocps-prev-repair { color: #fbbf24; }
+.ocps-hist-prior { background: rgba(251,191,36,.1); color: #fbbf24; }
+
+/* ── Repair Note Modal ─────────────────────────────────────────────── */
+#ocps-note-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.ocps-note-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 740px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0,0,0,.7);
+  overflow: hidden;
+}
+
+.ocps-note-header {
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.ocps-note-header-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ocps-note-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color .15s, background .15s;
+}
+.ocps-note-close:hover { color: #f87171; background: rgba(239,68,68,.1); }
+
+.ocps-note-editor-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+#ocps-note-editor {
+  outline: none;
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.75;
+  min-height: 200px;
+  word-break: break-word;
+}
+#ocps-note-editor p  { margin: 2px 0; }
+#ocps-note-editor ul { margin: 4px 0 4px 20px; padding: 0; }
+#ocps-note-editor li { margin: 1px 0; }
+#ocps-note-editor strong { color: #f1f5f9; }
+#ocps-note-editor img {
+  max-width: 100%;
+  border-radius: 6px;
+  display: block;
+  border: 1px solid #334155;
+}
+.ocps-img-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 8px 0;
+  line-height: 0;
+}
+.ocps-img-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,.6);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  padding: 3px 7px;
+  cursor: pointer;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 1;
+}
+.ocps-img-wrap:hover .ocps-img-copy-btn {
+  opacity: 1;
+}
+
+.ocps-note-toolbar {
+  background: #0f172a;
+  border-top: 1px solid #334155;
+  padding: 8px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ocps-note-hint {
+  font-size: 11px;
+  color: #475569;
+  flex: 1;
+}
+
+.ocps-note-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.ocps-note-btn:hover { background: #334155; border-color: #475569; }
+.ocps-note-btn.ocps-note-primary {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+.ocps-note-btn.ocps-note-primary:hover { background: #1d4ed8; }
+
+/* ── Camera Capture Modal ──────────────────────────────────────────── */
+#ocps-camera-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.ocps-camera-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 680px;
+  padding: 16px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.8);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ocps-camera-preview-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+#ocps-camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ocps-camera-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: #3b82f6;
+  border-style: solid;
+  pointer-events: none;
+}
+.ocps-camera-corner.tl { top: 10px;    left: 10px;    border-width: 3px 0 0 3px; }
+.ocps-camera-corner.tr { top: 10px;    right: 10px;   border-width: 3px 3px 0 0; }
+.ocps-camera-corner.bl { bottom: 10px; left: 10px;    border-width: 0 0 3px 3px; }
+.ocps-camera-corner.br { bottom: 10px; right: 10px;   border-width: 0 3px 3px 0; }
+
+.ocps-camera-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
