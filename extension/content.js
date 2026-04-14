@@ -925,9 +925,9 @@
           })
         ]);
       } catch {
-        // Fallback: select-all + execCommand on the already-detached tmpHolder
+        // Fallback: execCommand — element must be in viewport (not off-screen/invisible)
         const tmp2 = document.createElement("div");
-        tmp2.style.cssText = "position:fixed;left:-9999px;top:0;width:600px;";
+        tmp2.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1;";
         tmp2.innerHTML = html;
         document.body.appendChild(tmp2);
         const range = document.createRange();
