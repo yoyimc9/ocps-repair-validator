@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "OCPS Repair Validator",
   "version": "2.1.0",
-  "description": "Real-time repair validation panel for Odoo repair orders. Validates warranty coverage, sales orders, part classifications, and workflow tags.",
+  "description": "Real-time repair validation panel for Odoo. Validates warranty coverage, sales orders, part classifications, and workflow tags.",
   "permissions": ["storage", "activeTab", "scripting", "alarms", "tabs", "notifications", "clipboardWrite"],
   "background": {
     "service_worker": "background.js"
