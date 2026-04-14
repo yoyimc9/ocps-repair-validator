@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy — OCPS Repair Validator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #1e293b;
+      background: #f8fafc;
+      padding: 40px 16px 80px;
+    }
+    .container { max-width: 720px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 40px 48px; box-shadow: 0 2px 16px rgba(0,0,0,.07); }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; color: #0f172a; }
+    .meta { font-size: 13px; color: #64748b; margin-bottom: 32px; }
+    h2 { font-size: 16px; font-weight: 700; margin: 28px 0 8px; color: #0f172a; border-left: 4px solid #3b82f6; padding-left: 10px; }
+    p { margin-bottom: 12px; color: #334155; }
+    ul { margin: 8px 0 12px 20px; color: #334155; }
+    li { margin-bottom: 6px; }
+    .badge {
+      display: inline-block;
+      background: #dcfce7;
+      color: #166534;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Privacy Policy</h1>
+  <p class="meta">OCPS Repair Validator &nbsp;·&nbsp; Last updated: April 14, 2026</p>
+  <span class="badge">No personal data is sold or shared with third parties</span>
+
+  <h2>1. Overview</h2>
+  <p>
+    OCPS Repair Validator is a Chrome browser extension that provides real-time repair order
+    validation on Odoo repair pages used internally by OCPS technicians.
+    This policy describes what data the extension accesses, how it is used, and how it is stored.
+  </p>
+
+  <h2>2. Data the Extension Accesses</h2>
+  <ul>
+    <li>
+      <strong>Odoo session information</strong> — The extension reads your Odoo login (email/username)
+      from the active Odoo session via <code>/web/session/get_session_info</code>.
+      This is used solely to pre-fill the "User email" field in the repair note generator.
+    </li>
+    <li>
+      <strong>Repair order data</strong> — The extension reads repair order records, parts,
+      log notes, sales orders, and related Odoo records from the Odoo instance you are
+      currently logged into. All requests are made directly to the Odoo server using your
+      existing authenticated browser session (same-origin fetch, no passwords or tokens are
+      stored by the extension).
+    </li>
+    <li>
+      <strong>Clipboard</strong> — When you click "Copy Note," the extension writes formatted
+      note text (and optionally images) to your system clipboard.
+      No clipboard data is read or transmitted.
+    </li>
+    <li>
+      <strong>Camera</strong> — If you use the "Take Photo" feature, the extension requests
+      temporary camera access to capture a single image.
+      The image is placed directly into the note editor and never uploaded or stored externally.
+    </li>
+  </ul>
+
+  <h2>3. Local Storage</h2>
+  <p>The extension stores the following data locally in <code>chrome.storage.local</code> on your device:</p>
+  <ul>
+    <li><strong>Odoo username / login</strong> — Cached after a successful session check to pre-fill the note template. Overwritten on each login.</li>
+    <li><strong>Seen announcement IDs</strong> — A list of integer IDs used to avoid showing the same system announcement twice. No message content is stored.</li>
+    <li><strong>Extension file hash</strong> — An MD5 hash used internally to detect when extension files have been updated on the server. No user data is involved.</li>
+  </ul>
+  <p>This data never leaves your device and is not shared with anyone.</p>
+
+  <h2>4. Internal API Calls</h2>
+  <p>
+    When deployed in an internal environment, the extension may communicate with a local
+    network server (e.g., <code>10.x.x.x:3131</code>) to fetch announcements, blocked serial
+    lists, and UI control configurations set by administrators.
+    These calls are made only within your organization's private network and do not involve
+    any external third-party services.
+  </p>
+  <p>
+    The Chrome Web Store version of this extension does not include the private-IP host
+    permission and therefore makes no such calls.
+  </p>
+
+  <h2>5. Data We Do NOT Collect</h2>
+  <ul>
+    <li>We do not collect, transmit, or store any repair order data on external servers.</li>
+    <li>We do not track browsing history or behavior outside of Odoo repair pages.</li>
+    <li>We do not use analytics, advertising SDKs, or any third-party tracking libraries.</li>
+    <li>We do not sell, rent, or share any user data with third parties.</li>
+  </ul>
+
+  <h2>6. Permissions Justification</h2>
+  <ul>
+    <li><strong>activeTab / scripting</strong> — Required to inject the validation panel into the active Odoo repair page.</li>
+    <li><strong>storage</strong> — Required to cache the Odoo username and seen-announcement IDs locally.</li>
+    <li><strong>tabs</strong> — Required to detect when the user navigates to a repair page in order to trigger validation.</li>
+    <li><strong>notifications</strong> — Used to surface system announcements when an Odoo tab is not in focus.</li>
+    <li><strong>alarms</strong> — Used to schedule periodic background checks (e.g., every 30 seconds).</li>
+    <li><strong>clipboardWrite</strong> — Required to copy the generated repair note (with images) to the clipboard.</li>
+  </ul>
+
+  <h2>7. Changes to This Policy</h2>
+  <p>
+    If this policy is updated, the "Last updated" date at the top of this page will change.
+    Continued use of the extension after any update constitutes acceptance of the revised policy.
+  </p>
+
+  <h2>8. Contact</h2>
+  <p>
+    For questions about this privacy policy or the extension, contact the developer directly
+    through your internal OCPS channels or via the
+    <a href="https://github.com/yoyimc9/ocps-repair-validator" target="_blank" rel="noopener">GitHub repository</a>.
+  </p>
+
+  <footer>
+    &copy; 2026 OCPS Repair Validator &nbsp;·&nbsp;
+    <a href="https://github.com/yoyimc9/ocps-repair-validator" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+</div>
+</body>
+</html>
