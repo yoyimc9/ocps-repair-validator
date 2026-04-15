@@ -860,7 +860,7 @@
           <span class="ocps-note-hint">Ctrl+V to paste image &nbsp;&bull;&nbsp; images appear inline</span>
           <button class="ocps-note-btn" id="ocps-note-camera-btn">&#128247; Take Photo</button>
           <button class="ocps-note-btn" id="ocps-note-reset-btn">&#8635; Reset</button>
-          <button class="ocps-note-btn ocps-note-primary" id="ocps-note-copy-btn">&#128203; Copy Note</button>
+          <button class="ocps-note-btn ocps-note-primary" id="ocps-note-copy-btn">&#9998; Create Note</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -891,10 +891,12 @@
         pastedImages.length = 0;
       }
     };
-    // Copy to clipboard (images are stripped — use the 📋 button on each photo to copy images)
+    // Post note to Odoo chatter as a log note — images included as inline base64
     overlay.querySelector("#ocps-note-copy-btn").onclick = async () => {
       const btn = overlay.querySelector("#ocps-note-copy-btn");
-      // htmlClone: keep <img> data URIs inline, just remove the copy-button overlay
+      btn.disabled = true;
+      btn.textContent = "Posting\u2026";
+      // Build body: strip per-image copy buttons, unwrap .ocps-img-wrap — keeps <img src="data:...">
       const htmlClone = editor.cloneNode(true);
       htmlClone.querySelectorAll(".ocps-img-wrap").forEach((wrap) => {
         wrap.querySelectorAll(".ocps-img-copy-btn").forEach(b => b.remove());
@@ -902,45 +904,31 @@
         if (img) wrap.replaceWith(img);
         else wrap.remove();
       });
-      // textClone: replace image wraps with [Image N] paragraph placeholders
-      const textClone = editor.cloneNode(true);
-      textClone.querySelectorAll(".ocps-img-wrap").forEach((wrap, i) => {
-        const p = document.createElement("p");
-        p.textContent = `[Image ${i + 1}]`;
-        wrap.replaceWith(p);
-      });
-      // Attach textClone off-screen so innerText respects block-level newlines
-      const tmpHolder = document.createElement("div");
-      tmpHolder.style.cssText = "position:fixed;left:-9999px;top:0;width:600px;visibility:hidden;";
-      tmpHolder.appendChild(textClone);
-      document.body.appendChild(tmpHolder);
-      const html = htmlClone.innerHTML;
-      const text = textClone.innerText;
-      document.body.removeChild(tmpHolder);
+      const body = htmlClone.innerHTML;
+      const hint = overlay.querySelector(".ocps-note-hint");
       try {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            "text/html":  new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([text], { type: "text/plain" }),
-          })
-        ]);
-      } catch {
-        // Fallback: execCommand copy — element must be in-viewport (not off-screen/hidden)
-        const tmp2 = document.createElement("div");
-        tmp2.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1;";
-        tmp2.innerHTML = html;
-        document.body.appendChild(tmp2);
-        const range = document.createRange();
-        range.selectNodeContents(tmp2);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-        document.execCommand("copy");
-        sel.removeAllRanges();
-        document.body.removeChild(tmp2);
+        await OdooRPC.callKw("repair.order", "message_post", [data.id], {
+          body,
+          message_type: "comment",
+          subtype_xmlid: "mail.mt_note",
+        });
+        btn.textContent = "\u2705 Note created!";
+        setTimeout(() => {
+          overlay.remove();
+          if (currentRepairId) runValidation(currentRepairId);
+        }, 1200);
+      } catch (postErr) {
+        btn.disabled = false;
+        btn.innerHTML = "&#9998; Create Note";
+        if (hint) {
+          hint.textContent = "Error: " + (postErr.message || "Failed to post note");
+          hint.style.color = "#f87171";
+          setTimeout(() => {
+            hint.textContent = "Ctrl+V to paste image \u00a0\u2022\u00a0 images appear inline";
+            hint.style.color = "";
+          }, 4000);
+        }
       }
-      btn.textContent = "\u2705 Copied!";
-      setTimeout(() => { btn.innerHTML = "&#128203; Copy Note"; }, 2000);
     };
     // Place cursor at end
     editor.focus();
