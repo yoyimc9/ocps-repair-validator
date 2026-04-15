@@ -891,12 +891,12 @@
         pastedImages.length = 0;
       }
     };
-    // Post note to Odoo chatter as a log note — images included as inline base64
+    // Post note to Odoo chatter as a log note — images uploaded as ir.attachment
     overlay.querySelector("#ocps-note-copy-btn").onclick = async () => {
       const btn = overlay.querySelector("#ocps-note-copy-btn");
+      const hint = overlay.querySelector(".ocps-note-hint");
       btn.disabled = true;
-      btn.textContent = "Posting\u2026";
-      // Build body: strip per-image copy buttons, unwrap .ocps-img-wrap — keeps <img src="data:...">
+      // Build body: strip per-image copy buttons, unwrap .ocps-img-wrap
       const htmlClone = editor.cloneNode(true);
       htmlClone.querySelectorAll(".ocps-img-wrap").forEach((wrap) => {
         wrap.querySelectorAll(".ocps-img-copy-btn").forEach(b => b.remove());
@@ -904,8 +904,37 @@
         if (img) wrap.replaceWith(img);
         else wrap.remove();
       });
+      // Upload base64 images as ir.attachment, replace data URIs with server URLs
+      const imgEls = [...htmlClone.querySelectorAll("img[src^='data:']")];
+      for (let i = 0; i < imgEls.length; i++) {
+        btn.textContent = imgEls.length > 1
+          ? `Uploading ${i + 1}/${imgEls.length}\u2026`
+          : "Uploading image\u2026";
+        const imgEl = imgEls[i];
+        const dataUri = imgEl.getAttribute("src");
+        const commaIdx = dataUri.indexOf(",");
+        const meta = commaIdx !== -1 ? dataUri.slice(0, commaIdx) : "";
+        const b64 = commaIdx !== -1 ? dataUri.slice(commaIdx + 1) : dataUri;
+        const mimeMatch = meta.match(/data:([^;]+);base64/);
+        const mimetype = mimeMatch ? mimeMatch[1] : "image/jpeg";
+        const ext = (mimetype.split("/")[1] || "jpg").split("+")[0];
+        try {
+          const res = await OdooRPC.callKw("ir.attachment", "create", [{
+            name: `note-image-${i + 1}.${ext}`,
+            res_model: "repair.order",
+            res_id: data.id,
+            type: "binary",
+            datas: b64,
+            mimetype,
+          }], {});
+          const attId = Array.isArray(res) ? res[0] : res;
+          imgEl.setAttribute("src", `/web/image/${attId}`);
+        } catch (_) {
+          imgEl.remove();
+        }
+      }
+      btn.textContent = "Posting\u2026";
       const body = htmlClone.innerHTML;
-      const hint = overlay.querySelector(".ocps-note-hint");
       try {
         await OdooRPC.callKw("repair.order", "message_post", [data.id], {
           body,
