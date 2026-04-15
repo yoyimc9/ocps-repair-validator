@@ -49,6 +49,7 @@ const Validator = (() => {
     "ber-pending approval",
     "ber-approved for dismantle",
     "ber-approved for repair",
+    "ber-disassemble completed",
     "ber-parts requested", "ber-part(s) requested",
     "doa part", "part doa",
     "device box requested", "waiting on replacement device",
@@ -71,7 +72,7 @@ const Validator = (() => {
     "ber-threshold met", "ber-pending approval",
     "ber-approved for dismantle", "ber-approved for repair",
     "ber-parts requested", "ber-part(s) requested",
-    "ber-parts requested", "ber-part(s) requested",
+    "ber-disassemble completed",
   ]);
 
   /** Costo OOW (a livello famiglia, USD) che attiva il flusso BER — specchia config Odoo. */
@@ -652,7 +653,7 @@ const Validator = (() => {
 
     const hasBerTag = tags.some(t => BER_RELATED_TAGS.has(t));
     const isRtcTag = tags.includes("return to customer");
-    const isDismantleTag = tags.includes("ber-approved for dismantle");
+    const isDismantleTag = tags.includes("ber-approved for dismantle") || tags.includes("ber-disassemble completed");
     const isNoRepair = resolution.includes("no repair");
     const isParentOrChild = repair._parent_id || repair._is_rework;
 
@@ -815,10 +816,10 @@ const Validator = (() => {
       err("warning", "workflow", "Tag 'Part(s) Received' set but repair still On Hold — resume repair and assign to tech");
     }
 
-    if (isDismantleTag && parts.length > 0) {
+    if (tags.includes("ber-approved for dismantle") && parts.length > 0) {
       err("warning", "workflow", "Tag 'BER-Approved for Dismantle' — workflow says remove parts from repair order before ending");
     }
-    if (isDismantleTag && !["done", "cancel"].includes(state)) {
+    if (tags.includes("ber-approved for dismantle") && !["done", "cancel"].includes(state)) {
       err("warning", "workflow", "Tag 'BER-Approved for Dismantle' — repair should be ended (Done) after dismantling");
     }
     if (tags.includes("ber-approved for repair") && state === "on_hold") {
@@ -1041,8 +1042,9 @@ const Validator = (() => {
       }
 
       if (effectiveSo._is_ber) {
-        // SO contrassegnato come BER — la riparazione dovrebbe essere On Hold a meno che un figlio attivo la gestisca
-        if (state !== "on_hold") {
+        // SO contrassegnato come BER — la riparazione dovrebbe essere On Hold a meno che un figlio attivo la gestisca.
+        // Eccezione: BER disassembly completato — il tecnico sta chiudendo la riparazione dopo lo smontaggio.
+        if (state !== "on_hold" && !isDismantleTag) {
           const hasActiveChild = repair._family.some(f =>
             f.is_rework && f.id !== repair.id && !["done", "cancel"].includes(f.state)
           );
