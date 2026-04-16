@@ -340,6 +340,20 @@ const Validator = (() => {
         repair._delivery_history = deliveries || [];
         repair._return_history   = returns   || [];
       } catch (_) { /* leave empty — history is informational only */ }
+
+      // Previous completed repair for same serial — used for 30-day return check
+      repair._prev_repair = null;
+      try {
+        const prevRepairs = await OdooRPC.searchRead(
+          "repair.order",
+          [["lot_id", "=", lotId], ["id", "!=", repair.id], ["state", "=", "done"]],
+          ["id", "name", "write_date"],
+          { order: "write_date desc", limit: 1 }
+        );
+        if (prevRepairs && prevRepairs.length) {
+          repair._prev_repair = prevRepairs[0];
+        }
+      } catch (_) { /* leave empty */ }
     }
 
     // Arricchisci le voci di consegna con dati dell'ordine di riparazione.
@@ -663,6 +677,17 @@ const Validator = (() => {
 
     if (!repair._lot_name) {
       err("error", "header", "Serial/Lot number is required but missing");
+    }
+    // 30-day return check: compare current create_date against last completed repair's write_date
+    if (repair._prev_repair && repair.create_date) {
+      const prevDone    = new Date(repair._prev_repair.write_date);
+      const currCreated = new Date(repair.create_date);
+      const daysDiff = (currCreated - prevDone) / (1000 * 60 * 60 * 24);
+      if (daysDiff >= 0 && daysDiff < 30) {
+        err("warning", "workflow",
+          `Device returned for repair within 30 days of last completed repair ` +
+          `(${repair._prev_repair.name}, ${Math.floor(daysDiff)} day(s) ago) — redirect to lead or supervisor`);
+      }
     }
     if (["under_repair", "done"].includes(state) && !repair._coverage_type) {
       err("warning", "header", "Eligible coverage type is missing");
