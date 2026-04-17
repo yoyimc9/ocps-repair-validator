@@ -679,7 +679,9 @@ const Validator = (() => {
       err("error", "header", "Serial/Lot number is required but missing");
     }
     // 30-day return check: compare current create_date against last completed repair's write_date
-    if (repair._prev_repair && repair.create_date) {
+    // Skip if prev repair is the parent of this ticket (rework child — same original job, not a new return)
+    if (repair._prev_repair && repair.create_date &&
+        repair._prev_repair.id !== repair._parent_id) {
       const prevDone    = new Date(repair._prev_repair.write_date);
       const currCreated = new Date(repair.create_date);
       const daysDiff = (currCreated - prevDone) / (1000 * 60 * 60 * 24);
