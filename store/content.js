@@ -679,7 +679,11 @@
         if (lastValidationData) {
           const tl = lastValidationData._tags_lower || [];
           const st = lastValidationData.state || "";
-          setOnHoldDisabled(tl.length === 0 && !["on_hold", "done"].includes(st));
+          const domTagCount = document.querySelectorAll(
+            '[name="tag_ids"] .o_tag_badge_text, [name="tag_ids"] .o_tag, [name="tag_ids"] .badge'
+          ).length;
+          const hasAnyTag = tl.length > 0 || domTagCount > 0;
+          setOnHoldDisabled(!hasAnyTag && !["on_hold", "done"].includes(st));
         }
         // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {
