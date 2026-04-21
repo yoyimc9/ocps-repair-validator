@@ -937,7 +937,17 @@
         }
       }
       btn.textContent = "Posting\u2026";
-      const body = htmlClone.innerHTML;
+      // Convert to plain text (preserve line breaks). Images are attached via attachment_ids.
+      htmlClone.querySelectorAll("img").forEach(el => el.remove());
+      htmlClone.querySelectorAll("br").forEach(el => el.replaceWith("\n"));
+      htmlClone.querySelectorAll("p, div, li").forEach(el => el.append("\n"));
+      const plainText = (htmlClone.textContent || "")
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .trim();
+      const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      const body = escapeHtml(plainText).replace(/\n/g, "<br>");
       try {
         await OdooRPC.callKw("repair.order", "message_post", [data.id], {
           body,
