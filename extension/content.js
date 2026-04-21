@@ -920,6 +920,7 @@
       });
       // Upload base64 images as ir.attachment, replace data URIs with server URLs
       const imgEls = [...htmlClone.querySelectorAll("img[src^='data:']")];
+      const attachmentIds = [];
       for (let i = 0; i < imgEls.length; i++) {
         btn.textContent = imgEls.length > 1
           ? `Uploading ${i + 1}/${imgEls.length}\u2026`
@@ -942,7 +943,9 @@
             mimetype,
           }], {});
           const attId = Array.isArray(res) ? res[0] : res;
+          attachmentIds.push(attId);
           imgEl.setAttribute("src", `/web/image/${attId}`);
+          imgEl.removeAttribute("data-image-index");
         } catch (_) {
           imgEl.remove();
         }
@@ -954,6 +957,7 @@
           body,
           message_type: "comment",
           subtype_xmlid: "mail.mt_note",
+          attachment_ids: attachmentIds,
         });
         btn.textContent = "\u2705 Note created!";
         setTimeout(() => {
