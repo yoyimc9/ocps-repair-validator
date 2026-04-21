@@ -459,8 +459,11 @@
     const isRework = !!(data.parent_repair_id);
     setCreateQuotationHidden(isChs || isRework);
 
-    // Disable Put on Hold unless the repair has at least one tag set (skip when already on_hold/done)
-    setOnHoldDisabled(needsTagWarning);
+    // Disable Put on Hold: no tag set, OR ESDP coverage conflicts with CHS note
+    const hasChsEsdpConflict = !['on_hold', 'done'].includes(data.state) &&
+      data._is_esdp &&
+      (data.errors || []).some(e => e.category === 'coverage' && e.message.includes('CHS'));
+    setOnHoldDisabled(needsTagWarning || hasChsEsdpConflict);
 
     // Applica override controlli UI admin (eseguito per ultimo per sovrapporsi alle decisioni del validatore)
     applyUiControls();
@@ -683,7 +686,10 @@
             '[name="tag_ids"] .o_tag_badge_text, [name="tag_ids"] .o_tag, [name="tag_ids"] .badge'
           ).length;
           const hasAnyTag = tl.length > 0 || domTagCount > 0;
-          setOnHoldDisabled(!hasAnyTag && !["on_hold", "done"].includes(st));
+          const hasChsEsdpConflict = !["on_hold", "done"].includes(st) &&
+            lastValidationData._is_esdp &&
+            (lastValidationData.errors || []).some(e => e.category === "coverage" && e.message.includes("CHS"));
+          setOnHoldDisabled((!hasAnyTag && !["on_hold", "done"].includes(st)) || hasChsEsdpConflict);
         }
         // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {
