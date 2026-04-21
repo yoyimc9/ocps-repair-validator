@@ -156,6 +156,10 @@
     "device box requested",
     "waiting on replacement device",
     "shipped to oem",
+    "additional information needed",
+    "part delayed or backorder",
+    "30 days-pending to order part(s)",
+    "sent to contingent",
   ]);
 
   function findOnHoldButtons() {
