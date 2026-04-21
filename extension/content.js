@@ -145,28 +145,13 @@
 
   /* ── On Hold button management ─────────────────────────────── */
 
-  // HOLD_REQUIRED_TAGS keys (from validator.js) — any of these tags allow Put on Hold
-  const HOLD_TAG_KEYS = new Set([
-    "pending order parts", "pending order part(s)",
-    "pending to order part", "pending to order part(s)",
-    "pending customer quote approval",
-    "ber-threshold met", "ber-pending approval",
-    "ber-parts requested", "ber-part(s) requested",
-    "doa part", "part doa",
-    "device box requested",
-    "waiting on replacement device",
-    "shipped to oem",
-    "additional information needed",
-  ]);
-
   function findOnHoldButtons() {
     const buttons = [];
     document.querySelectorAll("button").forEach((btn) => {
       const name = btn.getAttribute("name") || "";
       const text = (btn.textContent || "").trim().toLowerCase();
       if (
-        name === "action_repair_done" && false  // placeholder — matched by text only
-        || name === "action_put_on_hold"
+        name === "action_put_on_hold"
         || name === "action_on_hold"
         || text === "put on hold"
         || text === "on hold"
@@ -264,7 +249,7 @@
     const domTagCount = document.querySelectorAll(
       '[name="tag_ids"] .o_tag_badge_text, [name="tag_ids"] .o_tag, [name="tag_ids"] .badge'
     ).length;
-    const hasAnyTag = (data._tags_lower || []).length > 0 || domTagCount > 0;
+    const hasAnyTag = (data.tags_lower || []).length > 0 || domTagCount > 0;
     const needsTagWarning = !hasAnyTag && !["on_hold", "done"].includes(data.state);
 
     const totalWarn = warnCount + (needsTagWarning ? 1 : 0);
@@ -462,7 +447,7 @@
 
     // Disable Put on Hold: no tag set, OR ESDP coverage conflicts with CHS note
     const hasChsEsdpConflict = !['on_hold', 'done'].includes(data.state) &&
-      data._is_esdp &&
+      data.is_esdp &&
       (data.errors || []).some(e => e.category === 'coverage' && e.message.includes('CHS'));
     setOnHoldDisabled(needsTagWarning || hasChsEsdpConflict);
 
@@ -681,16 +666,20 @@
         }
         // Ri-applica stato pulsante On Hold
         if (lastValidationData) {
-          const tl = lastValidationData._tags_lower || [];
+          const tl = lastValidationData.tags_lower || [];
           const st = lastValidationData.state || "";
           const domTagCount = document.querySelectorAll(
             '[name="tag_ids"] .o_tag_badge_text, [name="tag_ids"] .o_tag, [name="tag_ids"] .badge'
           ).length;
           const hasAnyTag = tl.length > 0 || domTagCount > 0;
           const hasChsEsdpConflict = !["on_hold", "done"].includes(st) &&
-            lastValidationData._is_esdp &&
+            lastValidationData.is_esdp &&
             (lastValidationData.errors || []).some(e => e.category === "coverage" && e.message.includes("CHS"));
           setOnHoldDisabled((!hasAnyTag && !["on_hold", "done"].includes(st)) || hasChsEsdpConflict);
+          // Ri-applica visibilità Create Quotation
+          const isChs = (lastValidationData.coverage_type || "").toLowerCase().includes("chs");
+          const isRework = !!(lastValidationData.parent_repair_id);
+          setCreateQuotationHidden(isChs || isRework);
         }
         // Ri-applica controlli UI admin — limitato a massimo una volta ogni 500ms
         if (Date.now() - lastUiControlsApply > 500) {

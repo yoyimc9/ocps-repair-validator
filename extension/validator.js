@@ -51,6 +51,7 @@ const Validator = (() => {
     "ber-pending approval",
     "ber-approved for dismantle",
     "ber-approved for repair",
+    "ber-approved for recycling",
     "ber-disassemble completed",
     "ber-parts requested", "ber-part(s) requested",
     "doa part", "part doa",
@@ -680,7 +681,7 @@ const Validator = (() => {
 
     const hasBerTag = tags.some(t => BER_RELATED_TAGS.has(t));
     const isRtcTag = tags.includes("return to customer");
-    const isDismantleTag = tags.includes("ber-approved for dismantle") || tags.includes("ber-disassemble completed");
+    const isDismantleTag = tags.includes("ber-approved for dismantle") || tags.includes("ber-disassemble completed") || tags.includes("ber-approved for recycling");
     const isNoRepair = resolution.includes("no repair");
     const isParentOrChild = repair._parent_id || repair._is_rework;
 
@@ -1143,6 +1144,7 @@ const Validator = (() => {
       assessment_name: repair._assessment_name,
       resolution: repair._resolution,
       tags: repair._tags,
+      tags_lower: repair._tags_lower || [],
       ticket_name: repair._ticket_name,
       ticket_stage: repair._ticket_stage,
       so_name: repair._so ? repair._so.name : null,
