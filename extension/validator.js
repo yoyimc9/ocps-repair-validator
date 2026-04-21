@@ -28,9 +28,6 @@ const Validator = (() => {
     "waiting on replacement device":   "Tag 'Waiting on Replacement Device' → Put on Hold (Apple, awaiting device)",
     "shipped to oem":                  "Tag 'Shipped to OEM' → Put on Hold (awaiting OEM return)",
     "additional information needed":   "Tag 'Additional Information Needed' → Put on Hold (awaiting additional information)",
-    "part delayed or backorder":        "Tag 'Part Delayed or Backorder' → Put on Hold (part unavailable or backordered)",
-    "30 days-pending to order part(s)": "Tag '30 DAYS - Pending to Order Part(s)' → Put on Hold (30-day parts order pending)",
-    "sent to contingent":              "Tag 'Sent to Contingent' → Put on Hold (device sent to contingent team)",
   };
 
   const HOLD_REASON_TAGS = new Set([
@@ -43,9 +40,6 @@ const Validator = (() => {
     "doa part", "part doa",
     "device box requested", "waiting on replacement device", "shipped to oem",
     "additional information needed",
-    "part delayed or backorder",
-    "30 days-pending to order part(s)",
-    "sent to contingent",
   ]);
 
   const PROCESS_TAGS = new Set([
@@ -84,9 +78,6 @@ const Validator = (() => {
     "device box requested", "waiting on replacement device",
     "shipped to oem",
     "additional information needed",
-    "part delayed or backorder",
-    "30 days-pending to order part(s)",
-    "sent to contingent",
   ]);
 
   const BER_RELATED_TAGS = new Set([
