@@ -810,6 +810,19 @@ const Validator = (() => {
       }
     }
 
+    // Mismatch garanzia: se almeno una parte è OOW e la copertura non è CHS,
+    // qualsiasi parte non OOW/BER è sospetta (probabilmente è stata selezionata
+    // la variante IW invece della variante -OOW).
+    if (!hasChs && parts.some(p => p.warranty_type === "OOW")) {
+      const mismatched = parts.filter(p =>
+        p.warranty_type !== "OOW" && p.warranty_type !== "BER"
+      );
+      mismatched.forEach(p => {
+        err("warning", "part",
+          `Part ${p.idx} (${p.product_name}): classified as ${p.warranty_type} while other parts on this repair are OOW — verify the correct OOW variant was selected (device has no CHS coverage)`);
+      });
+    }
+
     /* ── Livello 2: Tag ↔ State workflow ───────────────────────────── */
 
     // HOLD_REQUIRED_TAGS → dovrebbe essere on_hold

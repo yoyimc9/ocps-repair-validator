@@ -326,8 +326,10 @@
     // Unconsumed parts detail.
     // Reliable check: move state === 'done' means consumed (Odoo zeroes qty after completion).
     // For under_repair also show qty-based mismatches while the move is still in progress.
+    // Skip when part-category errors are already listed above (avoids duplicate info).
     let partsDetailHtml = "";
-    if (data.parts && data.parts.length && ["under_repair", "done"].includes(data.state)) {
+    const hasPartErrors = (data.errors || []).some(e => e.severity === "error" && e.category === "part");
+    if (!hasPartErrors && data.parts && data.parts.length && ["under_repair", "done"].includes(data.state)) {
       const unconsumed = data.parts.filter(p => {
         const moveStateDone = (p.state || "").toLowerCase() === "done";
         if (moveStateDone) return false;
