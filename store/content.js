@@ -947,14 +947,46 @@
         .trim();
       const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
         .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-      const body = escapeHtml(plainText).replace(/\n/g, "<br>");
+      const body = plainText.split("\n")
+        .map(line => `<p>${escapeHtml(line) || "<br/>"}</p>`)
+        .join("");
       try {
-        await OdooRPC.callKw("repair.order", "message_post", [data.id], {
+        // Resolve mail.mt_note subtype id and current author once
+        let noteSubtypeId = null;
+        try {
+          const sub = await OdooRPC.callKw("ir.model.data", "check_object_reference",
+            ["mail", "mt_note"], {});
+          if (Array.isArray(sub) && sub.length === 2) noteSubtypeId = sub[1];
+        } catch (_) { /* fallback below */ }
+        if (!noteSubtypeId) {
+          const subRows = await OdooRPC.searchRead("mail.message.subtype",
+            [["name", "=", "Note"], ["res_model", "=", false]], ["id"], { limit: 1 });
+          if (subRows && subRows.length) noteSubtypeId = subRows[0].id;
+        }
+        // Resolve current author (res.partner id)
+        let authorId = null;
+        try {
+          const sessResp = await fetch("/web/session/get_session_info", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", method: "call", params: {} }),
+          });
+          const sessJson = await sessResp.json();
+          const uid = sessJson.result && sessJson.result.uid;
+          if (uid) {
+            const userRows = await OdooRPC.read("res.users", [uid], ["partner_id"]);
+            authorId = userRows[0] && OdooRPC.m2oId(userRows[0].partner_id);
+          }
+        } catch (_) { /* author optional */ }
+        await OdooRPC.callKw("mail.message", "create", [{
+          model: "repair.order",
+          res_id: data.id,
           body,
           message_type: "comment",
-          subtype_xmlid: "mail.mt_note",
-          attachment_ids: attachmentIds,
-        });
+          subtype_id: noteSubtypeId || false,
+          author_id: authorId || false,
+          attachment_ids: attachmentIds.length ? [[6, 0, attachmentIds]] : false,
+        }], {});
         btn.textContent = "\u2705 Note created!";
         setTimeout(() => {
           overlay.remove();
