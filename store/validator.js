@@ -810,16 +810,16 @@ const Validator = (() => {
       }
     }
 
-    // Mismatch garanzia: se almeno una parte è OOW e la copertura non è CHS,
-    // qualsiasi parte non OOW/BER è sospetta (probabilmente è stata selezionata
-    // la variante IW invece della variante -OOW).
+    // Mismatch garanzia: parti senza suffisso -OOW/-BER sono IW (In Warranty).
+    // Su un dispositivo senza copertura CHS, qualsiasi parte IW è errore: il tecnico
+    // ha selezionato la variante sbagliata del prodotto.
     if (!hasChs && parts.some(p => p.warranty_type === "OOW")) {
       const mismatched = parts.filter(p =>
         p.warranty_type !== "OOW" && p.warranty_type !== "BER"
       );
       mismatched.forEach(p => {
-        err("warning", "part",
-          `Part ${p.idx} (${p.product_name}): classified as ${p.warranty_type} while other parts on this repair are OOW — verify the correct OOW variant was selected (device has no CHS coverage)`);
+        err("error", "part",
+          `Part ${p.idx} (${p.product_name}): IW (In Warranty) part selected on a non-CHS repair — select the OOW variant of this product (no -OOW suffix in the part number means In Warranty)`);
       });
     }
 
