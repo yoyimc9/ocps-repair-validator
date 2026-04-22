@@ -819,7 +819,7 @@ const Validator = (() => {
       );
       mismatched.forEach(p => {
         err("error", "part",
-          `Part ${p.idx} (${p.product_name}): IW (In Warranty) part selected on a non-CHS repair — select the OOW variant of this product (no -OOW suffix in the part number means In Warranty)`);
+          `Part ${p.idx} (${p.product_name}): IW part on non-CHS repair — select the -OOW variant`);
       });
     }
 
