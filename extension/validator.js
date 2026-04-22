@@ -13,21 +13,21 @@ const Validator = (() => {
    * ────────────────────────────────────────────────────────────────── */
 
   const HOLD_REQUIRED_TAGS = {
-    "pending order parts":             "Tag 'Pending Order Parts' → Put on Hold (awaiting parts order)",
-    "pending order part(s)":           "Tag 'Pending Order Part(s)' → Put on Hold (awaiting parts order)",
-    "pending to order part":           "Tag 'Pending to Order Parts' → Put on Hold (awaiting parts order)",
-    "pending to order part(s)":        "Tag 'Pending to Order Part(s)' → Put on Hold (awaiting parts order)",
-    "pending customer quote approval": "Tag 'Pending Customer Quote Approval' → Put on Hold (awaiting customer)",
-    "ber-threshold met":               "Tag 'BER-Threshold Met' → Put on Hold (awaiting BER approval)",
-    "ber-pending approval":            "Tag 'BER-Pending Approval' → Put on Hold (awaiting customer BER decision)",
-    "ber-parts requested":             "Tag 'BER-Parts Requested' → Put on Hold (awaiting BER part)",
-    "ber-part(s) requested":           "Tag 'BER- Part(s) Requested' → Put on Hold (awaiting BER part)",
-    "doa part":                        "Tag 'DOA Part' → Put on Hold (defective part, log note required)",
-    "part doa":                        "Tag 'Part DOA' → Put on Hold (defective part, log note required)",
-    "device box requested":            "Tag 'Device Box Requested' → Put on Hold (Apple IW, awaiting box)",
-    "waiting on replacement device":   "Tag 'Waiting on Replacement Device' → Put on Hold (Apple, awaiting device)",
-    "shipped to oem":                  "Tag 'Shipped to OEM' → Put on Hold (awaiting OEM return)",
-    "additional information needed":   "Tag 'Additional Information Needed' → Put on Hold (awaiting additional information)",
+    "pending order parts":             "Tag 'Pending Order Parts' → Put on Hold",
+    "pending order part(s)":           "Tag 'Pending Order Part(s)' → Put on Hold",
+    "pending to order part":           "Tag 'Pending to Order Parts' → Put on Hold",
+    "pending to order part(s)":        "Tag 'Pending to Order Part(s)' → Put on Hold",
+    "pending customer quote approval": "Tag 'Pending Customer Quote Approval' → Put on Hold",
+    "ber-threshold met":               "Tag 'BER-Threshold Met' → Put on Hold",
+    "ber-pending approval":            "Tag 'BER-Pending Approval' → Put on Hold",
+    "ber-parts requested":             "Tag 'BER-Parts Requested' → Put on Hold",
+    "ber-part(s) requested":           "Tag 'BER-Part(s) Requested' → Put on Hold",
+    "doa part":                        "Tag 'DOA Part' → Put on Hold (log note required)",
+    "part doa":                        "Tag 'Part DOA' → Put on Hold (log note required)",
+    "device box requested":            "Tag 'Device Box Requested' → Put on Hold",
+    "waiting on replacement device":   "Tag 'Waiting on Replacement Device' → Put on Hold",
+    "shipped to oem":                  "Tag 'Shipped to OEM' → Put on Hold",
+    "additional information needed":   "Tag 'Additional Information Needed' → Put on Hold",
   };
 
   const HOLD_REASON_TAGS = new Set([
@@ -690,7 +690,7 @@ const Validator = (() => {
     /* ── Livello 1: Intestazione ─────────────────────────────────────────── */
 
     if (!repair._lot_name) {
-      err("error", "header", "Serial/Lot number is required but missing");
+      err("error", "header", "Serial/Lot number missing");
     }
     // 30-day return check: compare current create_date against last completed repair's write_date
     // Skip if prev repair is the parent of this ticket (rework child — same original job, not a new return)
@@ -701,22 +701,21 @@ const Validator = (() => {
       const daysDiff = (currCreated - prevDone) / (1000 * 60 * 60 * 24);
       if (daysDiff >= 0 && daysDiff < 30) {
         err("warning", "workflow",
-          `Device returned for repair within 30 days of last completed repair ` +
-          `(${repair._prev_repair.name}, ${Math.floor(daysDiff)} day(s) ago) — redirect to lead or supervisor`);
+          `Returned ${Math.floor(daysDiff)}d after ${repair._prev_repair.name} — escalate to lead`);
       }
     }
     if (["under_repair", "done"].includes(state) && !repair._coverage_type) {
-      err("warning", "header", "Eligible coverage type is missing");
+      err("warning", "header", "Coverage type missing");
     }
     if (["under_repair", "done"].includes(state) && !repair._user_name) {
-      err("warning", "header", "Responsible user is not set");
+      err("warning", "header", "Repair Responsible missing");
     }
     if (["confirmed", "under_repair", "done"].includes(state) && !repair._assessment_name) {
-      err("warning", "header", "Assessment responsible is not set");
+      err("warning", "header", "Assessment Responsible missing");
     }
     if (["under_repair", "done"].includes(state) && parts.length === 0 &&
         !isRtcTag && !isNoRepair && !isParentOrChild) {
-      err("warning", "header", "No parts attached to repair");
+      err("warning", "header", "No parts attached");
     }
 
     /* ── Livello 1: Parti ──────────────────────────────────────────── */
@@ -729,10 +728,10 @@ const Validator = (() => {
         err("error", "part", `Part ${p.idx} (${p.product_name || "?"}): Demand must be > 0`);
       }
       if (!p.problem_statement) {
-        err("error", "part", `Part ${p.idx} (${p.product_name || "?"}): Problem statement is missing`);
+        err("error", "part", `Part ${p.idx} (${p.product_name || "?"}): Problem statement missing`);
       }
       if (["under_repair", "done"].includes(state) && !p.coverage_type_name) {
-        err("warning", "part", `Part ${p.idx} (${p.product_name || "?"}): Coverage type not selected`);
+        err("warning", "part", `Part ${p.idx} (${p.product_name || "?"}): Coverage type missing`);
       }
     });
 
@@ -747,7 +746,7 @@ const Validator = (() => {
         if (rlt === "remove" || rlt === "recycle") return;
         if (/\bn\/t\b|non[- ]?touch/i.test(p.product_name || "")) {
           err("error", "part",
-            `Part ${p.idx} (${p.product_name}): N/T (Non-Touch) part selected but device is a 2-in-1 (touch) model — select the correct touch-variant part number`);
+            `Part ${p.idx} (${p.product_name}): N/T part on 2-in-1 device — use touch variant`);
         }
       });
     }
@@ -759,12 +758,12 @@ const Validator = (() => {
     const nonEmpty = noteTexts.filter(t => t.length > 0);
 
     if (state === "done" && !hasNotes) {
-      err("error", "note", "Completed repair has no log notes — document the work performed");
+      err("error", "note", "Done repair has no log notes");
     } else if (["confirmed", "under_repair", "on_hold"].includes(state) && !hasNotes) {
-      err("warning", "note", "No log note found — add assessment/repair notes");
+      err("warning", "note", "No log note — add assessment/repair notes");
     }
     if (hasNotes && nonEmpty.length > 0 && nonEmpty.every(t => t.length < 10)) {
-      err("warning", "note", "Log note content too brief — describe the part and issue");
+      err("warning", "note", "Log note too brief");
     }
     if (parts.length > 0 && nonEmpty.length > 0) {
       const allText = nonEmpty.join(" ").toLowerCase();
@@ -780,7 +779,7 @@ const Validator = (() => {
         return tokens.some(w => allText.includes(w));
       });
       if (!anyRef) {
-        err("warning", "note", "Log note does not reference any part");
+        err("warning", "note", "Log note doesn't reference any part");
       }
     }
 
@@ -797,7 +796,7 @@ const Validator = (() => {
 
     if (noteRefChs && !hasChs && !isNoRepair && parts.length > 0) {
       err("error", "coverage",
-        `Log note requests CHS incident / IW parts but selected coverage is '${repair._coverage_type || "none"}' — no CHS coverage is present`);
+        `Note mentions CHS but coverage is '${repair._coverage_type || "none"}'`);
     }
 
     const iwParts = parts.filter(p => p.warranty_type === "IW");
@@ -806,7 +805,7 @@ const Validator = (() => {
       // Se la nota menziona CHS ma non c'è copertura CHS → le parti IW non sono valide
       if (noteRefChs && !hasChs) {
         err("error", "coverage",
-          `Selected part(s) are In Warranty (${iwNames}) but device has no active CHS coverage — use OOW or BER parts`);
+          `IW part(s) selected (${iwNames}) but no CHS coverage — use OOW/BER`);
       }
     }
 
@@ -838,7 +837,7 @@ const Validator = (() => {
     if (state === "draft") {
       for (const tag of tags) {
         if (PROCESS_TAGS.has(tag)) {
-          err("error", "workflow", `Draft order has process tag '${tag}' — confirm and assess the order first`);
+          err("error", "workflow", `Draft has process tag '${tag}' — confirm first`);
         }
       }
     }
@@ -848,45 +847,45 @@ const Validator = (() => {
       for (const tag of tags) {
         if (DONE_STALE_TAGS.has(tag)) {
           if (BER_RELATED_TAGS.has(tag) && hasBerTag) continue; // BER family exception
-          err("error", "workflow", `Completed repair still has pending tag '${tag}' — remove or update tag to reflect final disposition`);
+          err("error", "workflow", `Done repair still has pending tag '${tag}' — update or remove`);
         }
       }
     }
 
     // Regole tag specifiche
     if (isRtcTag && state === "done" && parts.length > 0) {
-      err("warning", "workflow", "Tag 'Return to Customer' on completed repair with parts — workflow says remove parts if no repair was performed");
+      err("warning", "workflow", "Tag 'Return to Customer' on Done repair with parts — remove parts");
     }
 
     const partsOrdered = tags.includes("parts ordered") || tags.includes("part(s) ordered");
     if (partsOrdered && state === "done") {
-      err("error", "workflow", "Tag 'Parts Ordered' still set on completed repair — change to 'Part(s) Received' or remove");
+      err("error", "workflow", "Tag 'Parts Ordered' on Done repair — change to 'Part(s) Received' or remove");
     } else if (partsOrdered && state !== "on_hold" && state !== "done") {
-      err("warning", "workflow", "Tag 'Parts Ordered' present but state is not On Hold — per workflow, parts-waiting orders should be on hold");
+      err("warning", "workflow", "Tag 'Parts Ordered' → Put on Hold");
     }
 
     const partsReceived = tags.includes("part(s) received") || tags.includes("parts received");
     if (partsReceived && state === "on_hold") {
-      err("warning", "workflow", "Tag 'Part(s) Received' set but repair still On Hold — resume repair and assign to tech");
+      err("warning", "workflow", "Tag 'Part(s) Received' but still On Hold — resume repair");
     }
 
     if (tags.includes("ber-approved for dismantle") && parts.length > 0) {
-      err("warning", "workflow", "Tag 'BER-Approved for Dismantle' — workflow says remove parts from repair order before ending");
+      err("warning", "workflow", "Tag 'BER-Approved for Dismantle' — remove parts before ending");
     }
     if (tags.includes("ber-approved for dismantle") && !["done", "cancel"].includes(state)) {
-      err("warning", "workflow", "Tag 'BER-Approved for Dismantle' — repair should be ended (Done) after dismantling");
+      err("warning", "workflow", "Tag 'BER-Approved for Dismantle' — end repair (Done) after dismantling");
     }
     if (tags.includes("ber-approved for repair") && state === "on_hold") {
-      err("warning", "workflow", "Tag 'BER-Approved for Repair' set but repair still On Hold — resume repair so tech can continue");
+      err("warning", "workflow", "Tag 'BER-Approved for Repair' but still On Hold — resume repair");
     }
     if (tags.includes("customer quote approved") && state === "on_hold") {
-      err("warning", "workflow", "Tag 'Customer Quote Approved' set but repair still On Hold — resume repair and notify tech");
+      err("warning", "workflow", "Tag 'Customer Quote Approved' but still On Hold — resume repair");
     }
     if (tags.includes("shipped to oem") && !["on_hold", "done", "cancel"].includes(state)) {
-      err("warning", "workflow", "Tag 'Shipped to OEM' — repair should be On Hold while awaiting return from OEM");
+      err("warning", "workflow", "Tag 'Shipped to OEM' → Put on Hold");
     }
     if (tags.includes("waiting on replacement device") && state === "done") {
-      err("warning", "workflow", "Tag 'Waiting on Replacement Device' still set on Done repair — remove tag after replacement received");
+      err("warning", "workflow", "Tag 'Waiting on Replacement Device' on Done — remove tag");
     }
 
     // Il tag 'Transferred to Imaging' è obbligatorio su tutte le riparazioni non-BER.
@@ -902,27 +901,27 @@ const Validator = (() => {
       const hasImagingTag = tags.includes("transferred to imaging");
       const isAtImaging   = (repair._device_location || "").toLowerCase().includes("osc-imaging");
       if (state === "under_repair" && !hasImagingTag) {
-        err("error", "workflow", "Tag 'Transferred to Imaging' is required — add the tag before ending the repair");
+        err("error", "workflow", "Tag 'Transferred to Imaging' required before ending repair");
       } else if (state === "done" && !hasImagingTag && isAtImaging) {
-        err("error", "workflow", "Repair was ended without the 'Transferred to Imaging' tag and device is still at imaging — add the tag to complete the workflow");
+        err("error", "workflow", "Done at imaging without 'Transferred to Imaging' tag — add the tag");
       }
     }
 
     /* ── Livello 3: Requisiti campo specifici per stato ──────────────── */
 
     if (state === "confirmed" && !repair._assessment_name) {
-      err("error", "workflow", "Confirmed repairs must have an Assessment Responsible assigned");
+      err("error", "workflow", "Confirmed: Assessment Responsible required");
     }
     if (state === "under_repair" && !repair._user_name) {
-      err("error", "workflow", "Under Repair requires a Repair Responsible (user) to be assigned");
+      err("error", "workflow", "Under Repair: Repair Responsible required");
     }
     if (state === "under_repair" && !repair._assessment_name) {
-      err("error", "workflow", "Under Repair requires an Assessment Responsible to be assigned");
+      err("error", "workflow", "Under Repair: Assessment Responsible required");
     }
     if (state === "on_hold") {
       const hasReasonTag = tags.some(t => HOLD_REASON_TAGS.has(t));
       if (!hasReasonTag) {
-        err("warning", "workflow", "On Hold repair has no reason tag — add a tag (e.g., Pending Order Parts, DOA Part, BER-Threshold Met)");
+        err("warning", "workflow", "On Hold without reason tag — add e.g. 'Pending Order Parts', 'DOA Part', 'BER-Threshold Met'");
       }
     }
     if (isNoRepair && !isRtcTag) {
@@ -932,15 +931,15 @@ const Validator = (() => {
       const isAtStaging = loc.includes("b-14") || loc.includes("staging") || loc.includes("contingence");
       const isAtQc      = loc.includes("/qc");
       if (isAtImaging && !tags.includes("transferred to imaging")) {
-        err("error", "workflow", "Resolution is 'No Repair Required' and device is at imaging — add the 'Transferred to Imaging' tag");
+        err("error", "workflow", "No Repair Required at imaging — add 'Transferred to Imaging' tag");
       } else if (isAtStaging && !tags.includes("sent to contingent")) {
-        err("error", "workflow", "Resolution is 'No Repair Required' and device is at staging — add the 'Sent to Contingent' tag");
+        err("error", "workflow", "No Repair Required at staging — add 'Sent to Contingent' tag");
       } else if (isAtQc && !tags.includes("qc completed")) {
-        err("error", "workflow", "Resolution is 'No Repair Required' and device is at QC — add the 'QC Completed' tag");
+        err("error", "workflow", "No Repair Required at QC — add 'QC Completed' tag");
       }
     }
     if (isNoRepair && parts.length > 0) {
-      err("warning", "workflow", "Resolution is 'No Repair Required' but parts are attached — remove parts if device was not repaired");
+      err("warning", "workflow", "No Repair Required but parts attached — remove parts");
     }
 
     // Controlli DOA
@@ -949,16 +948,16 @@ const Validator = (() => {
       const doaKw = ["doa", "defective", "dead on arrival"];
       const notesMentionDoa = doaKw.some(kw => allNoteText.includes(kw));
       if (!notesMentionDoa) {
-        err("warning", "workflow", "Tag 'DOA Part' set but log note doesn't mention 'DOA' or 'defective' — describe the defective part");
+        err("warning", "workflow", "Tag 'DOA Part' but log note doesn't mention DOA/defective");
       }
     }
 
     // BER-parti richieste
     const berPartsReq = tags.includes("ber-parts requested") || tags.includes("ber-part(s) requested");
     if (berPartsReq) {
-      err("warning", "workflow", "Tag 'BER-Parts Requested' present — review requested BER parts workflow and keep repair On Hold");
+      err("warning", "workflow", "Tag 'BER-Parts Requested' — keep On Hold");
       if (!hasNotes) {
-        err("error", "workflow", "Tag 'BER-Parts Requested' set but no log note — workflow requires describing which BER part is needed");
+        err("error", "workflow", "Tag 'BER-Parts Requested' requires log note describing the BER part needed");
       }
     }
 
@@ -980,7 +979,7 @@ const Validator = (() => {
         const isUsed = p.done >= p.demand;
         if (!isUsed) {
           err("error", "part",
-            `Part ${p.idx} (${p.product_name}): Not consumed — Done (${p.done}) of ${p.demand} required (must be marked as used before completing the repair)`);
+            `Part ${p.idx} (${p.product_name}): Not consumed — Done ${p.done}/${p.demand}`);
         }
       });
     }
@@ -999,11 +998,11 @@ const Validator = (() => {
         if (rlt === "recycle" || rlt === "remove") {
           if (p.done < p.demand) {
             err("error", "part",
-              `Part ${p.idx} (${p.product_name}): ${p.repair_line_type} part not consumed — Done (${p.done}) of ${p.demand} required (BER repairs must mark Recycle/Remove parts as used)`);
+              `Part ${p.idx} (${p.product_name}): ${p.repair_line_type} not consumed — Done ${p.done}/${p.demand}`);
           }
         } else if (state === "under_repair" && p.done > 0) {
           err("warning", "part",
-            `Part ${p.idx} (${p.product_name}): ${p.repair_line_type || "Add"} part should not be consumed on a BER repair — Done must be 0 (only Recycle/Remove parts are used during dismantle)`);
+            `Part ${p.idx} (${p.product_name}): ${p.repair_line_type || "Add"} consumed on BER repair — Done must be 0`);
         }
       });
     }
@@ -1034,7 +1033,7 @@ const Validator = (() => {
       if (nonIwParts.length > 0) {
         nonIwParts.forEach(p => {
           err("error", "coverage",
-            `Part ${p.idx} (${p.product_name}): ${p.warranty_type} part is not valid on a CHS repair — CHS covers physical damage under warranty; only IW (In Warranty) parts should be selected`);
+            `Part ${p.idx} (${p.product_name}): ${p.warranty_type} part on CHS repair — use IW only`);
         });
       }
     }
@@ -1047,7 +1046,7 @@ const Validator = (() => {
       const soCancelled = repair._so && repair._so.state === "cancel";
       if (!soCancelled) {
         err("error", "ber",
-          `Rework: Sales Order (${soName}) is linked directly to this rework — cancel this SO to re-enable End Repair, then ensure the correct SO is linked on the parent repair instead`);
+          `Rework: SO (${soName}) linked to rework — cancel it; SO belongs on parent repair`);
       }
     }
 
@@ -1057,9 +1056,9 @@ const Validator = (() => {
       const effectiveSoCancelled = repair._effective_so && repair._effective_so.state === "cancel";
       if (!effectiveSoCancelled) {
         const soName = repair._effective_so ? repair._effective_so.name : effectiveSoId;
-        const fromParent = repair._effective_so && repair._effective_so._from_parent ? " (inherited from parent repair)" : "";
+        const fromParent = repair._effective_so && repair._effective_so._from_parent ? " (from parent)" : "";
         err("error", "coverage",
-          `CHS repair has a linked Quotation/Sales Order (${soName}${fromParent}) — CHS is covered under warranty and requires no quotation; cancel or remove the linked SO`);
+          `CHS repair has linked SO (${soName}${fromParent}) — cancel; CHS needs no quotation`);
       }
     }
 
@@ -1068,7 +1067,7 @@ const Validator = (() => {
     const hasOowParts = parts.some(p => (p.warranty_type || "").toUpperCase() === "OOW");
     if (repair._is_esdp && !isNoRepair && state !== "draft" && !effectiveSoId && hasOowParts) {
       err("error", "ber",
-        "ESDP coverage requires a linked Quotation/Sales Order — create and link a quotation before completing the repair");
+        "ESDP with OOW parts: link a Quotation/SO before completing");
     }
 
     // ESDP: qualsiasi parte Recycle/Remove (rettifiche inventario — parti sbagliate sostituite)
@@ -1080,13 +1079,13 @@ const Validator = (() => {
       });
       if (adjustmentParts.length > 0) {
         err("warning", "ber",
-          `ESDP: ${adjustmentParts.length} inventory adjustment part(s) present — verify all are accounted for on the linked Sales Order (${effectiveSo.name})`);
+          `ESDP: ${adjustmentParts.length} inventory adjustment part(s) — verify on linked SO (${effectiveSo.name})`);
       }
     }
 
     if (state !== "draft" && effectiveSo) {
       const soLabel = effectiveSo._from_parent
-        ? ` (${effectiveSo.name} — inherited from parent repair)`
+        ? ` (${effectiveSo.name} — from parent)`
         : ` (${effectiveSo.name})`;
 
       // Ogni riparazione con un SO deve avere una riga Manodopera nel preventivo.
@@ -1096,12 +1095,12 @@ const Validator = (() => {
         (OdooRPC.m2oName(l.product_id) || l.name || "").toLowerCase().includes("labor")
       );
       if (!hasLabor && !hasChs && !isRework && !isNoRepair) {
-        err("error", "ber", `BER: Quotation${soLabel} is missing a Labor line`);
+        err("error", "ber", `BER: Quotation${soLabel} missing Labor line`);
       }
 
       // No Repair Required: il SO collegato deve essere cancellato — Odoo non permette di completare la riparazione con un SO attivo.
       if (isNoRepair && effectiveSo.state !== "cancel") {
-        err("error", "ber", `No Repair Required: Quotation${soLabel} must be cancelled before completing the repair`);
+        err("error", "ber", `No Repair Required: cancel Quotation${soLabel} before completing`);
       }
 
       // Rework: ogni parte OOW di tipo Add deve comparire nel SO genitore per essere fatturata correttamente.
@@ -1113,7 +1112,7 @@ const Validator = (() => {
           const inSo = effectiveSo._lines.some(l => OdooRPC.m2oId(l.product_id) === p.product_id);
           if (!inSo) {
             err("error", "ber",
-              `Rework: Part ${p.idx} (${p.product_name}) is not listed in the parent SO (${effectiveSo.name}) — add this OOW part to the parent's quotation before completing`);
+              `Rework: Part ${p.idx} (${p.product_name}) missing from parent SO (${effectiveSo.name}) — add it before completing`);
           }
         });
       }
@@ -1126,11 +1125,11 @@ const Validator = (() => {
             f.is_rework && f.id !== repair.id && !["done", "cancel"].includes(f.state)
           );
           if (!hasActiveChild) {
-            err("error", "ber", `BER: Sale order${soLabel} is flagged as BER but repair is not On Hold — place on hold immediately`);
+            err("error", "ber", `BER: SO${soLabel} flagged BER but repair not On Hold — place on hold`);
           }
         }
         if (!hasBerTag) {
-          err("error", "ber", `BER: SO${soLabel} is flagged as BER but repair has no BER-related tag — add 'BER-Threshold Met' or 'BER-Pending Approval'`);
+          err("error", "ber", `BER: SO${soLabel} flagged BER but no BER tag — add 'BER-Threshold Met' or 'BER-Pending Approval'`);
         }
       }
     }
@@ -1139,7 +1138,7 @@ const Validator = (() => {
     // Le parti con tipo copertura CHS sono esentate — CHS le copre, nessun preventivo necessario
     if (state !== "draft" && !effectiveSoId && billedOowParts.length > 0) {
       err("error", "ber",
-        `BER: Quotation/Sales Order not linked — ${billedOowParts.length} OOW part(s) present (not covered by CHS)`);
+        `BER: SO not linked — ${billedOowParts.length} OOW part(s) present (no CHS coverage)`);
     }
 
     // Costo OOW complessivo famiglia vs. soglia BER
@@ -1148,7 +1147,7 @@ const Validator = (() => {
     if (state !== "draft" && !hasChs && familyCost >= BER_THRESHOLD && !hasBerTag) {
       const scope = repair._parent_id || repair._is_rework ? "family" : "repair";
       err("error", "ber",
-        `BER threshold met: ${scope} OOW cost $${familyCost.toFixed(2)} ≥ $${BER_THRESHOLD} — add tag 'BER-Threshold Met' and place repair On Hold`);
+        `BER threshold met: ${scope} OOW $${familyCost.toFixed(2)} ≥ $${BER_THRESHOLD} — add 'BER-Threshold Met' and Put on Hold`);
     }
 
     return errors;
