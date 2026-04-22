@@ -972,6 +972,29 @@ const Validator = (() => {
       });
     }
 
+    /* ── Regola consumo BER ─────────────────────────────────────── */
+    // Quando è presente un tag BER (o l'SO è BER) il dispositivo viene
+    // smontato/riciclato — nessuna parte viene installata, solo rimossa:
+    //   - parti Recycle/Remove devono essere consumate (done >= demand) in
+    //     entrambi gli stati under_repair e done.
+    //   - parti Add non dovrebbero avere done > 0; warning solo in under_repair
+    //     (su done potrebbe trattarsi di una conversione a BER post-QC con
+    //     consumi Add legittimi della riparazione originale).
+    if (isBerRepair && ["under_repair", "done"].includes(state) && parts.length) {
+      parts.forEach(p => {
+        const rlt = (p.repair_line_type || "").toLowerCase();
+        if (rlt === "recycle" || rlt === "remove") {
+          if (p.done < p.demand) {
+            err("error", "part",
+              `Part ${p.idx} (${p.product_name}): ${p.repair_line_type} part not consumed — Done (${p.done}) of ${p.demand} required (BER repairs must mark Recycle/Remove parts as used)`);
+          }
+        } else if (state === "under_repair" && p.done > 0) {
+          err("warning", "part",
+            `Part ${p.idx} (${p.product_name}): ${p.repair_line_type || "Add"} part should not be consumed on a BER repair — Done must be 0 (only Recycle/Remove parts are used during dismantle)`);
+        }
+      });
+    }
+
     /* ── Validazione BER ────────────────────────────────────────── */
 
     const oowParts = parts.filter(p => p.warranty_type === "OOW");
