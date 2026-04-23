@@ -825,9 +825,13 @@ const Validator = (() => {
     }
 
     // Mismatch garanzia: parti senza suffisso -OOW/-BER sono IW (In Warranty).
-    // Su un dispositivo senza copertura CHS, qualsiasi parte IW è errore: il tecnico
-    // ha selezionato la variante sbagliata del prodotto.
-    if (!hasChs && parts.some(p => p.warranty_type === "OOW")) {
+    // CHS o garanzia base del produttore (es. ND Dell, AppleCare) coprono parti IW.
+    // ESDP da solo NON copre IW — solo OOW/BER. Quindi: se l'unica copertura è ESDP
+    // e c'è almeno una OOW, qualsiasi parte IW è la variante sbagliata.
+    const covEntries = (repair._coverage_type || "")
+      .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    const esdpOnly = covEntries.length > 0 && covEntries.every(c => c.includes("esdp"));
+    if (!hasChs && esdpOnly && parts.some(p => p.warranty_type === "OOW")) {
       const mismatched = parts.filter(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
         if (rlt === "remove" || rlt === "recycle") return false;
@@ -836,7 +840,7 @@ const Validator = (() => {
       });
       mismatched.forEach(p => {
         err("error", "part",
-          `Part ${p.idx} (${p.product_name}): IW part on non-CHS repair — select the -OOW variant`);
+          `Part ${p.idx} (${p.product_name}): IW part on ESDP-only repair — select the -OOW variant`);
       });
     }
 
