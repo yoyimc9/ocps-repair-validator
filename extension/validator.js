@@ -720,6 +720,20 @@ const Validator = (() => {
 
     /* ── Livello 1: Parti ──────────────────────────────────────────── */
 
+    // Righe Remove/Recycle compensano un Add precedente dello stesso product_id.
+    // Usato per sopprimere errori di mancato consumo / variante errata quando il
+    // tecnico ha già aggiunto la riga di compensazione (flusso Reopen Repair).
+    const offsetProductIds = new Set(
+      parts
+        .filter(p => {
+          const rlt = (p.repair_line_type || "").toLowerCase();
+          return rlt === "remove" || rlt === "recycle";
+        })
+        .map(p => p.product_id)
+        .filter(Boolean)
+    );
+    const hasOffset = p => offsetProductIds.has(p.product_id);
+
     parts.forEach(p => {
       if (!p.product_name) {
         err("error", "part", `Part ${p.idx}: Missing product`);
@@ -744,6 +758,7 @@ const Validator = (() => {
       parts.forEach(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
         if (rlt === "remove" || rlt === "recycle") return;
+        if (hasOffset(p)) return; // risolto da riga Remove/Recycle
         if (/\bn\/t\b|non[- ]?touch/i.test(p.product_name || "")) {
           err("error", "part",
             `Part ${p.idx} (${p.product_name}): N/T part on 2-in-1 device — use touch variant`);
@@ -813,9 +828,12 @@ const Validator = (() => {
     // Su un dispositivo senza copertura CHS, qualsiasi parte IW è errore: il tecnico
     // ha selezionato la variante sbagliata del prodotto.
     if (!hasChs && parts.some(p => p.warranty_type === "OOW")) {
-      const mismatched = parts.filter(p =>
-        p.warranty_type !== "OOW" && p.warranty_type !== "BER"
-      );
+      const mismatched = parts.filter(p => {
+        const rlt = (p.repair_line_type || "").toLowerCase();
+        if (rlt === "remove" || rlt === "recycle") return false;
+        if (hasOffset(p)) return false; // risolto da riga Remove/Recycle
+        return p.warranty_type !== "OOW" && p.warranty_type !== "BER";
+      });
       mismatched.forEach(p => {
         err("error", "part",
           `Part ${p.idx} (${p.product_name}): IW part on non-CHS repair — select the -OOW variant`);
@@ -977,9 +995,9 @@ const Validator = (() => {
         // 1.00 = correttamente consumata. Non usare p.picked — Odoo lo imposta durante il
         // flusso di completamento indipendentemente dal consumo effettivo.
         const isUsed = p.done >= p.demand;
-        if (!isUsed) {
+        if (!isUsed && !hasOffset(p)) {
           err("error", "part",
-            `Part ${p.idx} (${p.product_name}): Not consumed — Done ${p.done}/${p.demand}`);
+            `Part ${p.idx} (${p.product_name}): Not consumed — add Remove/Recycle line or set Done=Demand`);
         }
       });
     }
@@ -1028,6 +1046,7 @@ const Validator = (() => {
       const nonIwParts = parts.filter(p => {
         const rlt = (p.repair_line_type || "").toLowerCase();
         if (rlt === "recycle" || rlt === "remove") return false;
+        if (hasOffset(p)) return false; // risolto da riga Remove/Recycle
         return p.warranty_type === "OOW" || p.warranty_type === "BER";
       });
       if (nonIwParts.length > 0) {

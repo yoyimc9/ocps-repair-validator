@@ -10,7 +10,7 @@
 <gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
   <app appid='llmcjcllilnbmicmdhmiagpbplmjmlb'>
     <updatecheck
-      version='2.2.0'
+      version='2.3.0'
       codebase='https://github.com/yoyimc9/ocps-repair-validator/releases/latest/download/extension.crx' />
   </app>
 </gupdate>
