@@ -1,0 +1,54 @@
+{
+  "HOLD_REQUIRED_TAGS": {
+    "pending order parts":             "Tag 'Pending Order Parts' \u2192 Put on Hold",
+    "pending order part(s)":           "Tag 'Pending Order Part(s)' \u2192 Put on Hold",
+    "pending to order part":           "Tag 'Pending to Order Parts' \u2192 Put on Hold",
+    "pending to order part(s)":        "Tag 'Pending to Order Part(s)' \u2192 Put on Hold",
+    "pending customer quote approval": "Tag 'Pending Customer Quote Approval' \u2192 Put on Hold",
+    "ber-threshold met":               "Tag 'BER-Threshold Met' \u2192 Put on Hold",
+    "ber-pending approval":            "Tag 'BER-Pending Approval' \u2192 Put on Hold",
+    "ber-parts requested":             "Tag 'BER-Parts Requested' \u2192 Put on Hold",
+    "ber-part(s) requested":           "Tag 'BER-Part(s) Requested' \u2192 Put on Hold",
+    "doa part":                        "Tag 'DOA Part' \u2192 Put on Hold (log note required)",
+    "part doa":                        "Tag 'Part DOA' \u2192 Put on Hold (log note required)",
+    "device box requested":            "Tag 'Device Box Requested' \u2192 Put on Hold",
+    "waiting on replacement device":   "Tag 'Waiting on Replacement Device' \u2192 Put on Hold",
+    "shipped to oem":                  "Tag 'Shipped to OEM' \u2192 Put on Hold",
+    "additional information needed":   "Tag 'Additional Information Needed' \u2192 Put on Hold"
+  },
+  "HOLD_REASON_TAGS": [
+    "pending to order part", "pending to order part(s)",
+    "pending order parts", "pending order part(s)",
+    "pending customer quote approval",
+    "parts ordered", "part(s) ordered",
+    "ber-threshold met", "ber-pending approval",
+    "ber-parts requested", "ber-part(s) requested",
+    "doa part", "part doa",
+    "device box requested", "waiting on replacement device", "shipped to oem",
+    "additional information needed"
+  ],
+  "PROCESS_TAGS": [
+    "transferred to imaging", "sent to contingent", "qc completed",
+    "parts ordered", "part(s) ordered", "part(s) received", "parts received",
+    "ber-approved for dismantle", "ber-approved for repair", "ber-approved for recycling",
+    "customer quote approved",
+    "return to customer"
+  ],
+  "BER_RELATED_TAGS": [
+    "ber-threshold met", "ber-pending approval",
+    "ber-parts requested", "ber-part(s) requested",
+    "ber-approved for dismantle", "ber-approved for repair",
+    "ber-approved for recycling"
+  ],
+  "DONE_STALE_TAGS": [
+    "pending order parts", "pending order part(s)",
+    "pending to order part", "pending to order part(s)",
+    "pending customer quote approval",
+    "parts ordered", "part(s) ordered",
+    "ber-threshold met", "ber-pending approval",
+    "ber-parts requested", "ber-part(s) requested",
+    "doa part", "part doa",
+    "device box requested", "waiting on replacement device", "shipped to oem",
+    "additional information needed"
+  ]
+}

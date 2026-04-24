@@ -17,8 +17,9 @@
 
   const PANEL_ID = "ocps-validator-panel";
   const DEBOUNCE_MS = 1200;
-  const RPC_REVALIDATE_DEBOUNCE_MS = 2500;
-  const DOM_REVALIDATE_DEBOUNCE_MS = 1500; // live revalidation after form DOM changes
+  // Defaults — sovrascritti runtime da Config.get() quando il server risponde.
+  let RPC_REVALIDATE_DEBOUNCE_MS = 2500;
+  let DOM_REVALIDATE_DEBOUNCE_MS = 1500;
 
   let currentRepairId = null;
   let debounceTimer = null;
@@ -550,6 +551,17 @@
     await waitForElement(".o_form_sheet", 6000);
     renderLoading(repairId);
     await loadBlockedSerials(); // always fetch fresh list before checking
+    // Carica config dinamica dal server e applicala al validator (tag dict,
+    // soglia BER, debounce). I DEFAULTS bakeati restano se il server non risponde.
+    try {
+      const cfg = await Config.get();
+      Validator.applyConfig(cfg);
+      const th = (cfg && cfg.thresholds) || {};
+      if (typeof th.rpc_revalidate_debounce_ms === "number")
+        RPC_REVALIDATE_DEBOUNCE_MS = th.rpc_revalidate_debounce_ms;
+      if (typeof th.dom_revalidate_debounce_ms === "number")
+        DOM_REVALIDATE_DEBOUNCE_MS = th.dom_revalidate_debounce_ms;
+    } catch (_) { /* offline: use baked defaults */ }
     try {
       const result = await Validator.validateRepair(repairId);
       renderResult(result);
@@ -866,25 +878,30 @@
     return String(s == null ? "" : s).replace(/[\^~\\]/g, " ");
   }
 
-  function buildProductLabelZpl({ name, code, lot, customer }) {
+  function buildProductLabelZpl({ name, code, lot, customer, tpl }) {
     // 4×7 in @ 203 dpi → printer width 812 × feed 1421 dots.
     // Layout landscape (long edge = readable axis). Tutti i campi ruotati 90° (R)
     // con origine ancorata verso il bordo destro fisico (alto in landscape).
-    // Dimensioni ridotte e margini ampi per stare dentro l'area di stampa effettiva.
+    // Il template (font, posizioni, larghezza utile) arriva da config server-driven.
+    const t = tpl || {};
+    const usableLen   = t.usable_length  || 1100;
+    const titleY      = t.title_y        || 700;
+    const customerY   = t.customer_y     || 600;
+    const codeY       = t.code_y         || 510;
+    const barcodeY    = t.barcode_y      || 200;
+    const xMargin     = t.x_margin       || 60;
+    const titleFont   = t.title_font     || 55;
+    const titleLines  = t.title_lines    || 2;
+    const custFont    = t.customer_font  || 32;
+    const custLines   = t.customer_lines || 2;
+    const codeFont    = t.code_font      || 45;
+    const barH        = t.barcode_height || 280;
+
     const lotStr = String(lot || "");
-    const usableLen = 1100; // dots disponibili lungo l'asse lungo (margini di sicurezza)
     // Modulo barcode: scala in base alla lunghezza (Code 128 ≈ 11 moduli/char + 35 start/stop)
     const moduleW = lotStr.length > 0
       ? Math.max(2, Math.min(5, Math.floor(usableLen / (lotStr.length * 11 + 35))))
       : 3;
-
-    // Y coordinates (lato corto, fisico): 0 = bordo destro stampante, 812 = sinistro.
-    // In landscape: bordo destro fisico ≈ alto del foglio.
-    const titleY    = 700;   // titolo modello
-    const customerY = 600;   // riga cliente sotto il titolo
-    const codeY     = 510;
-    const barcodeY  = 200;
-    const xMargin   = 60;    // margine sinistro lungo l'asse lungo
 
     const lines = [
       "^XA",
@@ -892,21 +909,17 @@
       "^PW812",
       "^LL1421",
       "^LH0,0",
-      // Titolo prodotto: cella 55×55, max 2 righe
-      `^FO${titleY},${xMargin}^A0R,55,55^FB${usableLen},2,6,L,0^FD${escZpl(name)}^FS`,
+      `^FO${titleY},${xMargin}^A0R,${titleFont},${titleFont}^FB${usableLen},${titleLines},6,L,0^FD${escZpl(name)}^FS`,
     ];
     if (customer) {
-      // Cliente: cella 32×32, max 2 righe
       lines.push(
-        `^FO${customerY},${xMargin}^A0R,32,32^FB${usableLen},2,4,L,0^FD${escZpl(customer)}^FS`
+        `^FO${customerY},${xMargin}^A0R,${custFont},${custFont}^FB${usableLen},${custLines},4,L,0^FD${escZpl(customer)}^FS`
       );
     }
     lines.push(
-      // Codice prodotto in parentesi
-      `^FO${codeY},${xMargin}^A0R,45,45^FB${usableLen},1,4,L,0^FD[${escZpl(code)}]^FS`,
-      // Barcode Code 128 ruotato R, altezza 280 dots (~1.4")
+      `^FO${codeY},${xMargin}^A0R,${codeFont},${codeFont}^FB${usableLen},1,4,L,0^FD[${escZpl(code)}]^FS`,
       `^FO${barcodeY},${xMargin}^BY${moduleW},3,0`,
-      "^BCR,280,Y,N,N",
+      `^BCR,${barH},Y,N,N`,
       `^FD${escZpl(lotStr)}^FS`,
       "^XZ"
     );
@@ -930,23 +943,31 @@
       ocpsToast("No product info to print", "error");
       return;
     }
-    const zpl = buildProductLabelZpl({ name, code, lot, customer });
-    try {
-      chrome.runtime.sendMessage({ type: "ocps-print-zpl", zpl }, (resp) => {
-        if (chrome.runtime.lastError) {
-          ocpsToast("Print failed: " + chrome.runtime.lastError.message, "error");
-          return;
-        }
-        if (resp && resp.ok) {
-          ocpsToast("Label sent to printer", "ok");
-        } else {
-          const detail = resp ? (resp.error || ("HTTP " + resp.status)) : "no response";
-          ocpsToast("Print failed: " + detail, "error");
-        }
-      });
-    } catch (e) {
-      ocpsToast("Print failed: " + (e && e.message ? e.message : e), "error");
-    }
+    // Carica config (cached): template etichetta + stampante di default.
+    Config.get().then(cfg => {
+      const tpl = (cfg && cfg.labelTemplates && cfg.labelTemplates.product_label) || {};
+      const printer = Config.defaultPrinter(cfg);
+      const zpl = buildProductLabelZpl({ name, code, lot, customer, tpl });
+      try {
+        chrome.runtime.sendMessage(
+          { type: "ocps-print-zpl", zpl, printer },
+          (resp) => {
+            if (chrome.runtime.lastError) {
+              ocpsToast("Print failed: " + chrome.runtime.lastError.message, "error");
+              return;
+            }
+            if (resp && resp.ok) {
+              ocpsToast("Label sent to printer", "ok");
+            } else {
+              const detail = resp ? (resp.error || ("HTTP " + resp.status)) : "no response";
+              ocpsToast("Print failed: " + detail, "error");
+            }
+          }
+        );
+      } catch (e) {
+        ocpsToast("Print failed: " + (e && e.message ? e.message : e), "error");
+      }
+    });
   }
 
   async function showNoteModal(data) {

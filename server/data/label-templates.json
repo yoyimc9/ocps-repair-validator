@@ -1,0 +1,16 @@
+{
+  "product_label": {
+    "title_font": 55,
+    "title_lines": 2,
+    "customer_font": 32,
+    "customer_lines": 2,
+    "code_font": 45,
+    "barcode_height": 280,
+    "x_margin": 60,
+    "title_y": 700,
+    "customer_y": 600,
+    "code_y": 510,
+    "barcode_y": 200,
+    "usable_length": 1100
+  }
+}

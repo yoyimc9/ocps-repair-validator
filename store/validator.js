@@ -12,7 +12,10 @@ const Validator = (() => {
    *  COSTANTI TAG (specchia sync_engine.py)
    * ────────────────────────────────────────────────────────────────── */
 
-  const HOLD_REQUIRED_TAGS = {
+  // Le costanti sotto sono `let` per consentire override runtime via
+  // applyConfig() — vengono sostituite quando il server fornisce un
+  // tag-dictionary alternativo. I valori bakeati restano come fallback.
+  let HOLD_REQUIRED_TAGS = {
     "pending order parts":             "Tag 'Pending Order Parts' → Put on Hold",
     "pending order part(s)":           "Tag 'Pending Order Part(s)' → Put on Hold",
     "pending to order part":           "Tag 'Pending to Order Parts' → Put on Hold",
@@ -30,7 +33,7 @@ const Validator = (() => {
     "additional information needed":   "Tag 'Additional Information Needed' → Put on Hold",
   };
 
-  const HOLD_REASON_TAGS = new Set([
+  let HOLD_REASON_TAGS = new Set([
     "pending to order part", "pending to order part(s)",
     "pending order parts", "pending order part(s)",
     "pending customer quote approval",
@@ -42,7 +45,7 @@ const Validator = (() => {
     "additional information needed",
   ]);
 
-  const PROCESS_TAGS = new Set([
+  let PROCESS_TAGS = new Set([
     "pending to order part", "pending to order part(s)",
     "pending order parts", "pending order part(s)", "parts ordered",
     "part(s) ordered", "part(s) received", "parts received",
@@ -68,7 +71,7 @@ const Validator = (() => {
     "extended battery service expired",
   ]);
 
-  const DONE_STALE_TAGS = new Set([
+  let DONE_STALE_TAGS = new Set([
     "pending to order part", "pending to order part(s)",
     "pending order parts", "pending order part(s)",
     "parts ordered", "part(s) ordered",
@@ -81,7 +84,7 @@ const Validator = (() => {
     "additional information needed",
   ]);
 
-  const BER_RELATED_TAGS = new Set([
+  let BER_RELATED_TAGS = new Set([
     "ber-threshold met", "ber-pending approval",
     "ber-approved for dismantle", "ber-approved for repair",
     "ber-approved for recycling",
@@ -89,8 +92,37 @@ const Validator = (() => {
     "ber-disassemble completed",
   ]);
 
-  /** Costo OOW (a livello famiglia, USD) che attiva il flusso BER — specchia config Odoo. */
-  const BER_THRESHOLD = 250;
+  /** Costo OOW (a livello famiglia, USD) che attiva il flusso BER — override via applyConfig(). */
+  let BER_THRESHOLD = 250;
+
+  /**
+   * Override runtime delle tabelle tag/threshold — invocato da content.js dopo
+   * aver caricato la config dal server. Se una sezione manca o è vuota, il
+   * valore bakeato sopra rimane attivo come fallback.
+   */
+  function applyConfig(cfg) {
+    if (!cfg) return;
+    const td = cfg.tagDictionary || {};
+    if (td.HOLD_REQUIRED_TAGS && Object.keys(td.HOLD_REQUIRED_TAGS).length) {
+      HOLD_REQUIRED_TAGS = td.HOLD_REQUIRED_TAGS;
+    }
+    if (Array.isArray(td.HOLD_REASON_TAGS) && td.HOLD_REASON_TAGS.length) {
+      HOLD_REASON_TAGS = new Set(td.HOLD_REASON_TAGS.map(s => String(s).toLowerCase()));
+    }
+    if (Array.isArray(td.PROCESS_TAGS) && td.PROCESS_TAGS.length) {
+      PROCESS_TAGS = new Set(td.PROCESS_TAGS.map(s => String(s).toLowerCase()));
+    }
+    if (Array.isArray(td.BER_RELATED_TAGS) && td.BER_RELATED_TAGS.length) {
+      BER_RELATED_TAGS = new Set(td.BER_RELATED_TAGS.map(s => String(s).toLowerCase()));
+    }
+    if (Array.isArray(td.DONE_STALE_TAGS) && td.DONE_STALE_TAGS.length) {
+      DONE_STALE_TAGS = new Set(td.DONE_STALE_TAGS.map(s => String(s).toLowerCase()));
+    }
+    const th = cfg.thresholds || {};
+    if (typeof th.ber_threshold_usd === "number" && th.ber_threshold_usd > 0) {
+      BER_THRESHOLD = th.ber_threshold_usd;
+    }
+  }
 
   /* ────────────────────────────────────────────────────────────────── *
    *  CLASSIFICAZIONE GARANZIA
@@ -1225,5 +1257,5 @@ const Validator = (() => {
   /** Resetta lo schema in cache (es. dopo aver navigato su un'altra istanza Odoo). */
   function resetSchema() { _schemaCache = null; }
 
-  return { validateRepair, resetSchema, classifyWarranty };
+  return { validateRepair, resetSchema, classifyWarranty, applyConfig };
 })();

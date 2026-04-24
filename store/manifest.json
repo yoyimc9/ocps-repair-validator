@@ -1,7 +1,7 @@
 ﻿{
   "manifest_version": 3,
   "name": "OCPS Repair Validator",
-  "version": "2.4.0",
+  "version": "3.0.0",
   "description": "Real-time repair validation panel for Odoo. Validates warranty coverage, sales orders, part classifications, and workflow tags.",
   "permissions": ["storage", "activeTab", "scripting", "alarms", "tabs", "notifications", "clipboardWrite"],
   "background": {
@@ -12,12 +12,15 @@
     "https://raw.githubusercontent.com/*",
     "http://10.56.67.23/*"
   ],
+  "optional_host_permissions": [
+    "http://*/*"
+  ],
   "content_scripts": [
     {
       "matches": [
         "*://*.odoo.com/*"
       ],
-      "js": ["odoo-rpc.js", "validator.js", "content.js"],
+      "js": ["odoo-rpc.js", "config.js", "validator.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }

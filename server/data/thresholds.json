@@ -1,0 +1,6 @@
+{
+  "ber_threshold_usd": 250,
+  "rpc_revalidate_debounce_ms": 2500,
+  "dom_revalidate_debounce_ms": 1500,
+  "recent_repair_warning_days": 30
+}

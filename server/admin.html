@@ -298,6 +298,9 @@
     <div class="nav-item adv-nav" id="nav-server-config" onclick="showTab('server-config')">
       <span class="nav-icon">⚙️</span> Server Config
     </div>
+    <div class="nav-item adv-nav" id="nav-ext-config" onclick="showTab('ext-config')">
+      <span class="nav-icon">🧩</span> Ext Config
+    </div>
   </nav>
 
   <main class="main">
@@ -485,6 +488,68 @@
         <h3>Online Users <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:#475569;">Auto-refreshes every 30 s</span></h3>
         <p style="font-size:12px;color:#64748b;margin-bottom:12px;">🟢 Active within 2 min &nbsp;·&nbsp; 🟡 Active within 10 min &nbsp;·&nbsp; ⚫ Inactive</p>
         <div id="online-users-list"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ── Extension Config (server-driven) ─────────────────── -->
+    <div class="tab-panel" id="tab-ext-config">
+      <div class="panel-header">
+        <h2>🧩 Extension Config</h2>
+        <p>Configurazione dinamica letta dall'estensione (cache 5 min, push-invalidata). Modifiche salvate qui sostituiscono i valori bakeati nel client.</p>
+      </div>
+
+      <div class="card">
+        <h3>🖨️ Printers</h3>
+        <p style="font-size:12px;color:#64748b;margin:0 0 8px;">Stampanti Zebra. <code>default:true</code> identifica la stampante usata dal pulsante 🏷️.</p>
+        <textarea id="cfg-printers" style="width:100%;min-height:180px;font-family:monospace;font-size:12px;"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button onclick="saveExtSection('printers','printers','/api/printers')">Save Printers</button>
+          <span class="status-msg" id="cfg-printers-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🏷️ Tag Dictionary</h3>
+        <p style="font-size:12px;color:#64748b;margin:0 0 8px;">Dizionari tag usati dal validator. Lasciare vuoto un campo per usare il fallback bakeato.</p>
+        <textarea id="cfg-tag-dictionary" style="width:100%;min-height:240px;font-family:monospace;font-size:12px;"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button onclick="saveExtSection('tag-dictionary','tagDictionary','/api/tag-dictionary')">Save Tag Dictionary</button>
+          <span class="status-msg" id="cfg-tag-dictionary-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🚦 Feature Flags</h3>
+        <p style="font-size:12px;color:#64748b;margin:0 0 8px;"><code>categories.&lt;header|part|note|coverage|workflow|ber&gt;</code> attiva/disattiva intere famiglie di regole.</p>
+        <textarea id="cfg-feature-flags" style="width:100%;min-height:140px;font-family:monospace;font-size:12px;"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button onclick="saveExtSection('feature-flags','featureFlags','/api/feature-flags')">Save Feature Flags</button>
+          <span class="status-msg" id="cfg-feature-flags-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>📊 Thresholds</h3>
+        <p style="font-size:12px;color:#64748b;margin:0 0 8px;">Soglia BER (USD), debounce di rivalidazione, finestra avviso "recent repair".</p>
+        <textarea id="cfg-thresholds" style="width:100%;min-height:120px;font-family:monospace;font-size:12px;"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button onclick="saveExtSection('thresholds','thresholds','/api/thresholds')">Save Thresholds</button>
+          <span class="status-msg" id="cfg-thresholds-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🧾 Label Templates</h3>
+        <p style="font-size:12px;color:#64748b;margin:0 0 8px;">Layout ZPL del pulsante 🏷️ (font, posizioni, altezza barcode).</p>
+        <textarea id="cfg-label-templates" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button onclick="saveExtSection('label-templates','labelTemplates','/api/label-templates')">Save Label Templates</button>
+          <span class="status-msg" id="cfg-label-templates-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <button onclick="loadExtConfig()">↻ Reload All Sections</button>
       </div>
     </div>
 
@@ -942,6 +1007,52 @@
     }
   }
 
+  // ── Extension Config (server-driven) ─────────────────────────────────────
+  const EXT_CFG_SECTIONS = [
+    { domId: "printers",        path: "/api/printers" },
+    { domId: "tag-dictionary",  path: "/api/tag-dictionary" },
+    { domId: "feature-flags",   path: "/api/feature-flags" },
+    { domId: "thresholds",      path: "/api/thresholds" },
+    { domId: "label-templates", path: "/api/label-templates" },
+  ];
+
+  async function loadExtConfig() {
+    for (const s of EXT_CFG_SECTIONS) {
+      try {
+        const r = await fetch(window.location.origin + s.path);
+        const data = await r.json();
+        document.getElementById("cfg-" + s.domId).value =
+          JSON.stringify(data, null, 2);
+        setStatus("cfg-" + s.domId + "-status", "");
+      } catch (e) {
+        setStatus("cfg-" + s.domId + "-status", "❌ " + e.message, true);
+      }
+    }
+  }
+
+  async function saveExtSection(domId, _key, path) {
+    const ta = document.getElementById("cfg-" + domId);
+    const statusId = "cfg-" + domId + "-status";
+    let parsed;
+    try {
+      parsed = JSON.parse(ta.value);
+    } catch (e) {
+      setStatus(statusId, "❌ Invalid JSON: " + e.message, true);
+      return;
+    }
+    try {
+      const r = await fetch(window.location.origin + path, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      setStatus(statusId, "✓ Saved");
+    } catch (e) {
+      setStatus(statusId, "❌ " + e.message, true);
+    }
+  }
+
   // ── Inizializzazione ──────────────────────────────────────────────────────
   document.getElementById("server-host").textContent = window.location.host;
   loadAnnouncements();
@@ -952,6 +1063,7 @@
   loadOnlineUsers();
   loadExtHash();
   loadServerConfig();
+  loadExtConfig();
   setInterval(loadMessages, 15000);
   setInterval(loadOnlineUsers, 30000);
 </script>

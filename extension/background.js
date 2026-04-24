@@ -25,7 +25,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message && message.type === "ocps-print-zpl") {
     (async () => {
       try {
-        const url = message.url || "http://10.56.67.23/pstprnt";
+        // URL può arrivare come (a) message.url esplicito, (b) message.printer
+        // dalla config server-driven, oppure (c) fallback bakeato.
+        let url = message.url;
+        if (!url && message.printer) {
+          const p = message.printer;
+          const port = p.port && p.port !== 80 ? ":" + p.port : "";
+          url = `http://${p.host}${port}${p.path || "/pstprnt"}`;
+        }
+        if (!url) url = "http://10.56.67.23/pstprnt";
         const resp = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },

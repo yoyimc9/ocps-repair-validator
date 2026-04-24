@@ -1,0 +1,15 @@
+{
+  "printers": [
+    {
+      "id": "zt230-default",
+      "name": "Zebra ZT230 (Repair Bench)",
+      "host": "10.56.67.23",
+      "port": 80,
+      "path": "/pstprnt",
+      "dpi": 203,
+      "label_width_in": 4,
+      "label_length_in": 7,
+      "default": true
+    }
+  ]
+}

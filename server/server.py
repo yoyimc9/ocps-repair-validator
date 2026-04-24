@@ -360,6 +360,60 @@ def delete_message(msg_id):
     _publish_event("messages")
     return jsonify({"ok": True})
 
+# ── Configurazione Estensione (config dinamica per il client) ────────────
+
+# Defaults forniti se i file JSON non esistono ancora — l'estensione ha gli
+# stessi valori bakeati come fallback se il server è irraggiungibile.
+EXT_CONFIG_FILES = {
+    "printers":        ("printers.json",        {"printers": []}),
+    "tagDictionary":   ("tag-dictionary.json",  {}),
+    "featureFlags":    ("feature-flags.json",   {"categories": {}, "rules": {}}),
+    "thresholds":      ("thresholds.json",      {}),
+    "labelTemplates":  ("label-templates.json", {}),
+}
+
+@app.route("/api/ext-config", methods=["GET"])
+def get_ext_config():
+    """Aggregated config blob consumed by the extension on startup.
+    Cached client-side for 5 min; invalidated by the `config` push event."""
+    out = {}
+    for key, (fname, default) in EXT_CONFIG_FILES.items():
+        out[key] = _read(fname, default)
+    resp = jsonify(out)
+    resp.headers["Cache-Control"] = "max-age=60"
+    return resp
+
+def _ext_section_endpoint(section_key):
+    fname, default = EXT_CONFIG_FILES[section_key]
+    if request.method == "GET":
+        return jsonify(_read(fname, default))
+    data = request.get_json(silent=True)
+    if data is None:
+        abort(400)
+    _write(fname, data)
+    _publish_event("ext-config", {"section": section_key})
+    return jsonify({"ok": True})
+
+@app.route("/api/printers", methods=["GET", "PUT"])
+def printers_endpoint():
+    return _ext_section_endpoint("printers")
+
+@app.route("/api/tag-dictionary", methods=["GET", "PUT"])
+def tag_dictionary_endpoint():
+    return _ext_section_endpoint("tagDictionary")
+
+@app.route("/api/feature-flags", methods=["GET", "PUT"])
+def feature_flags_endpoint():
+    return _ext_section_endpoint("featureFlags")
+
+@app.route("/api/thresholds", methods=["GET", "PUT"])
+def thresholds_endpoint():
+    return _ext_section_endpoint("thresholds")
+
+@app.route("/api/label-templates", methods=["GET", "PUT"])
+def label_templates_endpoint():
+    return _ext_section_endpoint("labelTemplates")
+
 # ── Avvio ──────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -1,0 +1,11 @@
+{
+  "categories": {
+    "header": true,
+    "part": true,
+    "note": true,
+    "coverage": true,
+    "workflow": true,
+    "ber": true
+  },
+  "rules": {}
+}
