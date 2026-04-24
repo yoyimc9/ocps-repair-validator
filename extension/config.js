@@ -46,11 +46,19 @@ const Config = (() => {
     },
     labelTemplates: {
       product_label: {
-        title_font: 55, title_lines: 2,
-        customer_font: 32, customer_lines: 2,
-        code_font: 45, barcode_height: 280,
-        x_margin: 60, title_y: 700, customer_y: 600,
-        code_y: 510, barcode_y: 200, usable_length: 1100,
+        width_dots: 812,
+        length_dots: 1421,
+        show_received: true,
+        show_parts: true,
+        max_parts_lines: 5,
+        elements: {
+          title:    { enabled: true, x: 60, y: 700, w: 1100, font: 55, lines: 2 },
+          customer: { enabled: true, x: 60, y: 600, w: 1100, font: 32, lines: 2 },
+          received: { enabled: true, x: 60, y: 540, w: 1100, font: 28, lines: 1 },
+          code:     { enabled: true, x: 60, y: 480, w: 1100, font: 40, lines: 1 },
+          parts:    { enabled: true, x: 60, y: 360, w: 1100, font: 26, lines: 5 },
+          barcode:  { enabled: true, x: 60, y: 180, w: 1100, h: 220 },
+        },
       },
     },
   };

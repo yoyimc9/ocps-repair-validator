@@ -365,9 +365,10 @@ const Validator = (() => {
     // Entrambe le query girano in parallelo e hanno default [] su qualsiasi errore.
     repair._delivery_history = [];
     repair._return_history   = [];
+    repair._received_at_rec  = null;  // ultima ricezione in REC-DEV-ST / REC-DEV-STAFF
     if (lotId) {
       try {
-        const [deliveries, returns] = await Promise.all([
+        const [deliveries, returns, recReceipts] = await Promise.all([
           OdooRPC.searchRead(
             "stock.move.line",
             [["lot_id", "=", lotId], ["state", "=", "done"],
@@ -382,9 +383,25 @@ const Validator = (() => {
             ["id", "date", "picking_id"],
             { order: "date desc", limit: 10 }
           ),
+          // Ricezioni nelle location bench: WH/Stock/REC-DEV-ST e REC-DEV-STAFF.
+          // Usa ilike sul complete_name per catturare entrambe in un'unica query.
+          OdooRPC.searchRead(
+            "stock.move.line",
+            [["lot_id", "=", lotId], ["state", "=", "done"],
+             ["location_dest_id.complete_name", "ilike", "REC-DEV"]],
+            ["id", "date", "location_dest_id"],
+            { order: "date desc", limit: 1 }
+          ),
         ]);
         repair._delivery_history = deliveries || [];
         repair._return_history   = returns   || [];
+        if (recReceipts && recReceipts.length) {
+          const r0 = recReceipts[0];
+          repair._received_at_rec = {
+            date: r0.date || null,
+            location: OdooRPC.m2oName(r0.location_dest_id) || "",
+          };
+        }
       } catch (_) { /* leave empty — history is informational only */ }
 
       // Previous completed repair for same serial — used for 30-day return check
@@ -1246,6 +1263,7 @@ const Validator = (() => {
       parts: repair._parts,
       delivery_history: repair._delivery_history || [],
       return_history:   repair._return_history   || [],
+      received_at_rec:  repair._received_at_rec  || null,
       errors,
       error_count: errorCount,
       warning_count: warningCount,

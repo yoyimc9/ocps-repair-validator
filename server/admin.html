@@ -540,10 +540,59 @@
 
       <div class="card">
         <h3>🧾 Label Templates</h3>
-        <p style="font-size:12px;color:#64748b;margin:0 0 8px;">Layout ZPL del pulsante 🏷️ (font, posizioni, altezza barcode).</p>
-        <textarea id="cfg-label-templates" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;"></textarea>
+        <p style="font-size:12px;color:#64748b;margin:0 0 8px;">
+          Layout dell'etichetta del pulsante 🏷️ (Zebra ZT230, 4×7" landscape).
+          Trascina i blocchi per riposizionarli; usa le caselle a destra per font, larghezza, righe e abilitazione.
+        </p>
+
+        <div id="label-editor" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+          <!-- Canvas: rappresenta l'etichetta in landscape (1421 dots × 812 dots) scalata. -->
+          <div style="flex:0 0 auto;">
+            <div style="font-size:11px;color:#64748b;margin-bottom:4px;">Anteprima (scala 1:2.5 — landscape, lato lungo orizzontale)</div>
+            <div id="label-canvas" style="position:relative;width:568px;height:325px;background:#fff;border:2px solid #cbd5e1;border-radius:6px;overflow:hidden;user-select:none;"></div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
+              ← lato lungo (1421 dots = 7") →
+              &nbsp;|&nbsp; lato corto (812 dots = 4") ↕
+            </div>
+          </div>
+
+          <!-- Pannello proprietà elemento selezionato -->
+          <div style="flex:1 1 240px;min-width:240px;">
+            <div id="label-element-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px;">
+              <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Selezionato: <span id="label-sel-name" style="color:#0f172a;text-transform:none;letter-spacing:0;">—</span></div>
+              <div id="label-sel-props" style="display:none;font-size:12px;">
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;">
+                  <label>Enabled</label><input type="checkbox" id="lp-enabled" onchange="updateSelProp('enabled', this.checked)">
+                  <label>X (along long edge)</label><input type="number" id="lp-x" min="0" max="1421" onchange="updateSelProp('x', +this.value)">
+                  <label>Y (along short edge)</label><input type="number" id="lp-y" min="0" max="812" onchange="updateSelProp('y', +this.value)">
+                  <label>Width (FB)</label><input type="number" id="lp-w" min="50" max="1421" onchange="updateSelProp('w', +this.value)">
+                  <label id="lp-font-label">Font (dots)</label><input type="number" id="lp-font" min="10" max="200" onchange="updateSelProp('font', +this.value)">
+                  <label id="lp-lines-label">Max lines</label><input type="number" id="lp-lines" min="1" max="10" onchange="updateSelProp('lines', +this.value)">
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px;font-size:12px;">
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;">
+                <label>Show Recv date</label><input type="checkbox" id="lp-show-received" onchange="updateLabelFlag('show_received', this.checked)">
+                <label>Show parts</label><input type="checkbox" id="lp-show-parts" onchange="updateLabelFlag('show_parts', this.checked)">
+                <label>Max parts lines</label><input type="number" id="lp-max-parts" min="1" max="10" onchange="updateLabelFlag('max_parts_lines', +this.value)">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <details style="margin-top:12px;">
+          <summary style="cursor:pointer;font-size:12px;color:#64748b;">Advanced (raw JSON)</summary>
+          <textarea id="cfg-label-templates" style="width:100%;min-height:200px;font-family:monospace;font-size:12px;margin-top:8px;"></textarea>
+          <div class="row" style="margin-top:6px;">
+            <button onclick="applyRawLabelJson()">Apply JSON to editor</button>
+          </div>
+        </details>
+
         <div class="row" style="margin-top:8px;">
           <button onclick="saveExtSection('label-templates','labelTemplates','/api/label-templates')">Save Label Templates</button>
+          <button onclick="resetLabelEditor()" style="background:#64748b;">Reset to defaults</button>
           <span class="status-msg" id="cfg-label-templates-status"></span>
         </div>
       </div>
@@ -1052,6 +1101,284 @@
       setStatus(statusId, "❌ " + e.message, true);
     }
   }
+
+  // ── Editor visuale Label Templates ──────────────────────────────────────
+  // Coordinate: il template usa coordinate ZPL (x = posizione lungo lato corto
+  // ancorata a destra del foglio fisico; y = posizione lungo lato lungo).
+  // L'editor mostra l'etichetta in landscape: orizzontale = lato lungo (1421
+  // dots = 7"), verticale = lato corto (812 dots = 4"). Il mapping è:
+  //   canvas_left_px = (zpl_y / 1421) * canvas_w
+  //   canvas_top_px  = ((812 - zpl_x - elem_height) / 812) * canvas_h
+  // E inverso quando l'utente trascina.
+  const LABEL_DEFAULTS = {
+    product_label: {
+      width_dots: 812, length_dots: 1421,
+      show_received: true, show_parts: true, max_parts_lines: 5,
+      elements: {
+        title:    { enabled: true, x: 60, y: 700, w: 1100, font: 55, lines: 2 },
+        customer: { enabled: true, x: 60, y: 600, w: 1100, font: 32, lines: 2 },
+        received: { enabled: true, x: 60, y: 540, w: 1100, font: 28, lines: 1 },
+        code:     { enabled: true, x: 60, y: 480, w: 1100, font: 40, lines: 1 },
+        parts:    { enabled: true, x: 60, y: 360, w: 1100, font: 26, lines: 5 },
+        barcode:  { enabled: true, x: 60, y: 180, w: 1100, h: 220 },
+      },
+    },
+  };
+  const ELEMENT_META = {
+    title:    { color: "#1e3a8a", bg: "#dbeafe", sample: "Latitude 5550 IW" },
+    customer: { color: "#831843", bg: "#fbcfe8", sample: "Customer: Acme Corp" },
+    received: { color: "#854d0e", bg: "#fef3c7", sample: "Recv: Apr 22, 2026 (3 days ago)" },
+    code:     { color: "#374151", bg: "#e5e7eb", sample: "[LAT5550-IW]" },
+    parts:    { color: "#065f46", bg: "#d1fae5", sample: "Battery (3-cell)\nLCD assembly\nKeyboard" },
+    barcode:  { color: "#0f172a", bg: "#cbd5e1", sample: "▮▮ ▮▮▮ ▮ ▮▮ (Code 128)" },
+  };
+  const CANVAS_W = 568, CANVAS_H = 325;
+  let labelTpl = null;          // { product_label: {...} }
+  let selectedElem = null;      // chiave in labelTpl.product_label.elements
+  let dragState = null;
+
+  function applyDefaultsToLabel(tpl) {
+    // Merge profondo: defaults sovrascritti da values utente.
+    const out = JSON.parse(JSON.stringify(LABEL_DEFAULTS));
+    if (!tpl || typeof tpl !== "object") return out;
+    if (tpl.product_label && typeof tpl.product_label === "object") {
+      const u = tpl.product_label;
+      const o = out.product_label;
+      for (const k of ["width_dots","length_dots","show_received","show_parts","max_parts_lines"]) {
+        if (u[k] !== undefined) o[k] = u[k];
+      }
+      if (u.elements && typeof u.elements === "object") {
+        for (const ek of Object.keys(o.elements)) {
+          if (u.elements[ek]) Object.assign(o.elements[ek], u.elements[ek]);
+        }
+        // accetta elementi extra dall'utente
+        for (const ek of Object.keys(u.elements)) {
+          if (!o.elements[ek]) o.elements[ek] = u.elements[ek];
+        }
+      }
+    }
+    return out;
+  }
+
+  function pl() { return labelTpl && labelTpl.product_label; }
+
+  function elemPx(el, key) {
+    // Altezza visiva approssimativa in dots ZPL: barcode usa h, testo usa font * lines.
+    const hDots = key === "barcode"
+      ? (el.h || 220)
+      : ((el.font || 28) * Math.max(1, el.lines || 1) * 1.15);
+    const wDots = el.w || 1100;
+    const left = (el.y / 1421) * CANVAS_W;
+    const top  = ((812 - el.x - hDots) / 812) * CANVAS_H;
+    return {
+      left, top,
+      width:  Math.max(20, (wDots / 1421) * CANVAS_W),
+      height: Math.max(14, (hDots / 812)  * CANVAS_H),
+    };
+  }
+
+  function pxToZpl(left, top, el, key) {
+    const hDots = key === "barcode"
+      ? (el.h || 220)
+      : ((el.font || 28) * Math.max(1, el.lines || 1) * 1.15);
+    let y = (left / CANVAS_W) * 1421;
+    let x = 812 - (top / CANVAS_H) * 812 - hDots;
+    y = Math.max(0, Math.min(1421, Math.round(y)));
+    x = Math.max(0, Math.min(812,  Math.round(x)));
+    return { x, y };
+  }
+
+  function renderLabelEditor() {
+    const canvas = document.getElementById("label-canvas");
+    const list   = document.getElementById("label-element-list");
+    if (!canvas || !pl()) return;
+    canvas.innerHTML = "";
+    list.innerHTML = "";
+    const els = pl().elements;
+    const order = ["barcode","parts","code","received","customer","title"]; // z-order
+    for (const key of order) {
+      const el = els[key];
+      if (!el) continue;
+      const meta = ELEMENT_META[key] || { color: "#0f172a", bg: "#e2e8f0", sample: key };
+      const { left, top, width, height } = elemPx(el, key);
+      const div = document.createElement("div");
+      div.className = "label-elem";
+      div.dataset.key = key;
+      div.style.cssText = `
+        position:absolute; left:${left}px; top:${top}px; width:${width}px; height:${height}px;
+        background:${meta.bg}; color:${meta.color};
+        border:1px solid ${meta.color}; border-radius:3px;
+        font-size:10px; line-height:1.1; padding:2px 4px;
+        cursor:move; overflow:hidden; box-sizing:border-box;
+        opacity:${el.enabled === false ? 0.35 : 1};
+        ${selectedElem === key ? "box-shadow:0 0 0 2px #2563eb;" : ""}
+      `;
+      div.textContent = meta.sample;
+      div.addEventListener("mousedown", startDrag);
+      div.addEventListener("click", (ev) => { ev.stopPropagation(); selectElem(key); });
+      canvas.appendChild(div);
+
+      // riga lista
+      const row = document.createElement("div");
+      row.style.cssText = `
+        display:flex; align-items:center; gap:6px; padding:4px 8px;
+        background:${selectedElem === key ? "#dbeafe" : "#f8fafc"};
+        border:1px solid ${selectedElem === key ? "#2563eb" : "#e2e8f0"};
+        border-radius:4px; cursor:pointer; font-size:12px;
+        ${el.enabled === false ? "opacity:0.5;" : ""}
+      `;
+      row.innerHTML = `
+        <span style="display:inline-block;width:10px;height:10px;background:${meta.color};border-radius:2px;"></span>
+        <strong style="text-transform:capitalize;">${key}</strong>
+        <span style="margin-left:auto;color:#64748b;font-size:11px;">${el.enabled === false ? "off" : "on"}</span>
+      `;
+      row.onclick = () => selectElem(key);
+      list.appendChild(row);
+    }
+    canvas.onclick = () => selectElem(null);
+    // checkbox/flag bindings
+    const p = pl();
+    const cb1 = document.getElementById("lp-show-received");
+    const cb2 = document.getElementById("lp-show-parts");
+    const mp  = document.getElementById("lp-max-parts");
+    if (cb1) cb1.checked = p.show_received !== false;
+    if (cb2) cb2.checked = p.show_parts !== false;
+    if (mp)  mp.value    = p.max_parts_lines || 5;
+    // sync raw JSON textarea (advanced)
+    const ta = document.getElementById("cfg-label-templates");
+    if (ta) ta.value = JSON.stringify(labelTpl, null, 2);
+  }
+
+  function selectElem(key) {
+    selectedElem = key;
+    const propsBox = document.getElementById("label-sel-props");
+    const nameSpan = document.getElementById("label-sel-name");
+    if (!key) {
+      propsBox.style.display = "none";
+      nameSpan.textContent = "—";
+      renderLabelEditor();
+      return;
+    }
+    const el = pl().elements[key];
+    nameSpan.textContent = key;
+    propsBox.style.display = "";
+    document.getElementById("lp-enabled").checked = el.enabled !== false;
+    document.getElementById("lp-x").value = el.x;
+    document.getElementById("lp-y").value = el.y;
+    document.getElementById("lp-w").value = el.w;
+    if (key === "barcode") {
+      document.getElementById("lp-font-label").textContent = "Barcode height";
+      document.getElementById("lp-font").value = el.h || 220;
+      document.getElementById("lp-lines-label").style.display = "none";
+      document.getElementById("lp-lines").style.display = "none";
+    } else {
+      document.getElementById("lp-font-label").textContent = "Font (dots)";
+      document.getElementById("lp-font").value = el.font || 28;
+      document.getElementById("lp-lines-label").style.display = "";
+      document.getElementById("lp-lines").style.display = "";
+      document.getElementById("lp-lines").value = el.lines || 1;
+    }
+    renderLabelEditor();
+  }
+
+  function updateSelProp(prop, value) {
+    if (!selectedElem) return;
+    const el = pl().elements[selectedElem];
+    if (selectedElem === "barcode" && prop === "font") {
+      el.h = value;
+    } else {
+      el[prop] = value;
+    }
+    renderLabelEditor();
+  }
+
+  function updateLabelFlag(flag, value) {
+    pl()[flag] = value;
+    renderLabelEditor();
+  }
+
+  function startDrag(ev) {
+    ev.preventDefault();
+    const key = ev.currentTarget.dataset.key;
+    selectElem(key);
+    const el = pl().elements[key];
+    const startX = ev.clientX, startY = ev.clientY;
+    const px = elemPx(el, key);
+    dragState = { key, startX, startY, origLeft: px.left, origTop: px.top };
+    document.addEventListener("mousemove", doDrag);
+    document.addEventListener("mouseup", endDrag);
+  }
+  function doDrag(ev) {
+    if (!dragState) return;
+    const dx = ev.clientX - dragState.startX;
+    const dy = ev.clientY - dragState.startY;
+    const newLeft = Math.max(0, Math.min(CANVAS_W, dragState.origLeft + dx));
+    const newTop  = Math.max(0, Math.min(CANVAS_H, dragState.origTop  + dy));
+    const el = pl().elements[dragState.key];
+    const z = pxToZpl(newLeft, newTop, el, dragState.key);
+    el.x = z.x; el.y = z.y;
+    // update DOM live (lighter than full re-render)
+    const node = document.querySelector(`.label-elem[data-key="${dragState.key}"]`);
+    if (node) {
+      node.style.left = newLeft + "px";
+      node.style.top  = newTop  + "px";
+    }
+    document.getElementById("lp-x").value = el.x;
+    document.getElementById("lp-y").value = el.y;
+  }
+  function endDrag() {
+    dragState = null;
+    document.removeEventListener("mousemove", doDrag);
+    document.removeEventListener("mouseup", endDrag);
+    // sync textarea
+    const ta = document.getElementById("cfg-label-templates");
+    if (ta) ta.value = JSON.stringify(labelTpl, null, 2);
+  }
+
+  function applyRawLabelJson() {
+    const ta = document.getElementById("cfg-label-templates");
+    try {
+      const parsed = JSON.parse(ta.value);
+      labelTpl = applyDefaultsToLabel(parsed);
+      selectedElem = null;
+      renderLabelEditor();
+      setStatus("cfg-label-templates-status", "✓ JSON applied to editor");
+    } catch (e) {
+      setStatus("cfg-label-templates-status", "❌ Invalid JSON: " + e.message, true);
+    }
+  }
+
+  function resetLabelEditor() {
+    if (!confirm("Reset label layout to defaults?")) return;
+    labelTpl = applyDefaultsToLabel(null);
+    selectedElem = null;
+    renderLabelEditor();
+  }
+
+  // Wrap loadExtConfig per inizializzare l'editor visuale dopo il fetch.
+  const _origLoadExtConfig = loadExtConfig;
+  loadExtConfig = async function() {
+    await _origLoadExtConfig();
+    try {
+      const ta = document.getElementById("cfg-label-templates");
+      const parsed = ta && ta.value ? JSON.parse(ta.value) : {};
+      labelTpl = applyDefaultsToLabel(parsed);
+      renderLabelEditor();
+    } catch (_) {
+      labelTpl = applyDefaultsToLabel(null);
+      renderLabelEditor();
+    }
+  };
+
+  // Hook save: prima del PUT, sincronizza textarea con labelTpl.
+  const _origSaveExtSection = saveExtSection;
+  saveExtSection = async function(domId, key, path) {
+    if (domId === "label-templates" && labelTpl) {
+      const ta = document.getElementById("cfg-label-templates");
+      if (ta) ta.value = JSON.stringify(labelTpl, null, 2);
+    }
+    return _origSaveExtSection(domId, key, path);
+  };
 
   // ── Inizializzazione ──────────────────────────────────────────────────────
   document.getElementById("server-host").textContent = window.location.host;

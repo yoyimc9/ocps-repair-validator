@@ -878,52 +878,103 @@
     return String(s == null ? "" : s).replace(/[\^~\\]/g, " ");
   }
 
-  function buildProductLabelZpl({ name, code, lot, customer, tpl }) {
-    // 4×7 in @ 203 dpi → printer width 812 × feed 1421 dots.
-    // Layout landscape (long edge = readable axis). Tutti i campi ruotati 90° (R)
-    // con origine ancorata verso il bordo destro fisico (alto in landscape).
-    // Il template (font, posizioni, larghezza utile) arriva da config server-driven.
+  function buildProductLabelZpl({ name, code, lot, customer, received, parts, tpl }) {
+    // Layout landscape su Zebra ZT230 (4×7" @ 203dpi → 812×1421 dots).
+    // Tutti i campi sono ruotati 90° (^A0R / ^BCR) per leggibilità landscape.
+    // Il template (posizioni, font, abilitazione, max righe) arriva da config
+    // server-driven; ogni elemento ha {x, y, w, font, lines, enabled}.
     const t = tpl || {};
-    const usableLen   = t.usable_length  || 1100;
-    const titleY      = t.title_y        || 700;
-    const customerY   = t.customer_y     || 600;
-    const codeY       = t.code_y         || 510;
-    const barcodeY    = t.barcode_y      || 200;
-    const xMargin     = t.x_margin       || 60;
-    const titleFont   = t.title_font     || 55;
-    const titleLines  = t.title_lines    || 2;
-    const custFont    = t.customer_font  || 32;
-    const custLines   = t.customer_lines || 2;
-    const codeFont    = t.code_font      || 45;
-    const barH        = t.barcode_height || 280;
-
+    const els = t.elements || {};
     const lotStr = String(lot || "");
-    // Modulo barcode: scala in base alla lunghezza (Code 128 ≈ 11 moduli/char + 35 start/stop)
-    const moduleW = lotStr.length > 0
-      ? Math.max(2, Math.min(5, Math.floor(usableLen / (lotStr.length * 11 + 35))))
-      : 3;
+    const lines = ["^XA", "^CI28", `^PW${t.width_dots || 812}`, `^LL${t.length_dots || 1421}`, "^LH0,0"];
 
-    const lines = [
-      "^XA",
-      "^CI28",
-      "^PW812",
-      "^LL1421",
-      "^LH0,0",
-      `^FO${titleY},${xMargin}^A0R,${titleFont},${titleFont}^FB${usableLen},${titleLines},6,L,0^FD${escZpl(name)}^FS`,
-    ];
-    if (customer) {
+    function txt(key, value, opts) {
+      const e = els[key];
+      if (!e || e.enabled === false) return;
+      const s = String(value == null ? "" : value).trim();
+      if (!s) return;
+      const font = e.font || 32;
+      const w = e.w || 1100;
+      const maxLines = (opts && opts.lines) || e.lines || 1;
+      const gap = Math.max(2, Math.round(font * 0.1));
       lines.push(
-        `^FO${customerY},${xMargin}^A0R,${custFont},${custFont}^FB${usableLen},${custLines},4,L,0^FD${escZpl(customer)}^FS`
+        `^FO${e.x || 60},${e.y || 0}^A0R,${font},${font}^FB${w},${maxLines},${gap},L,0^FD${escZpl(s)}^FS`
       );
     }
-    lines.push(
-      `^FO${codeY},${xMargin}^A0R,${codeFont},${codeFont}^FB${usableLen},1,4,L,0^FD[${escZpl(code)}]^FS`,
-      `^FO${barcodeY},${xMargin}^BY${moduleW},3,0`,
-      `^BCR,${barH},Y,N,N`,
-      `^FD${escZpl(lotStr)}^FS`,
-      "^XZ"
-    );
+
+    txt("title", name);
+    txt("customer", customer);
+    txt("received", received);
+    txt("code", code ? `[${code}]` : "");
+
+    // Parti: lista multi-riga, una parte per riga, troncata a max_parts_lines.
+    if (els.parts && els.parts.enabled !== false &&
+        t.show_parts !== false && Array.isArray(parts) && parts.length) {
+      const e = els.parts;
+      const maxLines = e.lines || t.max_parts_lines || 5;
+      const list = parts.slice(0, maxLines);
+      const overflow = parts.length - list.length;
+      const body = list.map(p => "\\&" + p).join("");
+      // \& è il separatore di riga interno a ^FB di ZPL
+      const text = body.replace(/^\\&/, "") +
+                   (overflow > 0 ? `\\&+${overflow} more…` : "");
+      const font = e.font || 26;
+      const w = e.w || 1100;
+      const gap = Math.max(2, Math.round(font * 0.15));
+      lines.push(
+        `^FO${e.x || 60},${e.y || 0}^A0R,${font},${font}^FB${w},${maxLines + (overflow > 0 ? 1 : 0)},${gap},L,0^FD${escZpl(text)}^FS`
+      );
+    }
+
+    // Barcode Code 128 ruotato R, modulo scalato in base alla lunghezza del lot.
+    const bc = els.barcode;
+    if (bc && bc.enabled !== false && lotStr) {
+      const w = bc.w || 1100;
+      const h = bc.h || 220;
+      const moduleW = Math.max(2, Math.min(5, Math.floor(w / (lotStr.length * 11 + 35))));
+      lines.push(
+        `^FO${bc.x || 60},${bc.y || 0}^BY${moduleW},3,0`,
+        `^BCR,${h},Y,N,N`,
+        `^FD${escZpl(lotStr)}^FS`
+      );
+    }
+
+    lines.push("^XZ");
     return lines.join("\n");
+  }
+
+  function fmtReceivedDate(iso) {
+    if (!iso) return "";
+    // Odoo format: "2026-04-22 14:33:21" — print "Recv: Apr 22, 2026"
+    try {
+      const d = new Date(iso.replace(" ", "T") + (iso.endsWith("Z") ? "" : "Z"));
+      if (isNaN(d.getTime())) return "";
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+      const ageStr = days <= 0 ? "today" : (days === 1 ? "1 day ago" : `${days} days ago`);
+      return `Recv: ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}  (${ageStr})`;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function collectAddPartNames(data) {
+    const parts = (data && data.parts) || [];
+    // "Add" repair_line_type = parti installate sul dispositivo. Le parti
+    // Remove/Recycle non vengono mostrate sull'etichetta (sono offset interni).
+    return parts
+      .filter(p => {
+        const rlt = String(p.repair_line_type || "").toLowerCase();
+        return rlt === "add" || rlt.includes("add");
+      })
+      .map(p => {
+        // "[CODE] Description" → "Description" o codice se desc vuota
+        const raw = String(p.product_name || "").trim();
+        const m = raw.match(/^\[([^\]]+)\]\s*(.*)$/);
+        const desc = (m ? m[2] : raw).trim();
+        return desc || (m ? m[1] : raw);
+      })
+      .filter(Boolean);
   }
 
   function printProductLabel(data) {
@@ -935,6 +986,10 @@
     const name = (m ? m[2] : raw).trim();
     const lot = (data.lot_name || "").trim();
     const customer = (data.partner_name || "").trim();
+    const received = (data.received_at_rec && data.received_at_rec.date)
+      ? fmtReceivedDate(data.received_at_rec.date)
+      : "";
+    const partNames = collectAddPartNames(data);
     if (!lot) {
       ocpsToast("No Lot/SN to print", "error");
       return;
@@ -947,7 +1002,9 @@
     Config.get().then(cfg => {
       const tpl = (cfg && cfg.labelTemplates && cfg.labelTemplates.product_label) || {};
       const printer = Config.defaultPrinter(cfg);
-      const zpl = buildProductLabelZpl({ name, code, lot, customer, tpl });
+      const zpl = buildProductLabelZpl({
+        name, code, lot, customer, received, parts: partNames, tpl,
+      });
       try {
         chrome.runtime.sendMessage(
           { type: "ocps-print-zpl", zpl, printer },
