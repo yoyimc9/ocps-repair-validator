@@ -866,7 +866,7 @@
     return String(s == null ? "" : s).replace(/[\^~\\]/g, " ");
   }
 
-  function buildProductLabelZpl({ name, code, lot }) {
+  function buildProductLabelZpl({ name, code, lot, customer }) {
     // 4×7 in @ 203 dpi → printer width 812 × feed 1421 dots.
     // Layout landscape (long edge = readable axis). Tutti i campi ruotati 90° (R)
     // con origine ancorata verso il bordo destro fisico (alto in landscape).
@@ -880,10 +880,11 @@
 
     // Y coordinates (lato corto, fisico): 0 = bordo destro stampante, 812 = sinistro.
     // In landscape: bordo destro fisico ≈ alto del foglio.
-    const titleY   = 660;   // 812 - 660 = 152 dots (~0.75") dal bordo alto landscape
-    const codeY    = 530;
-    const barcodeY = 200;
-    const xMargin  = 60;    // margine sinistro lungo l'asse lungo
+    const titleY    = 700;   // titolo modello
+    const customerY = 600;   // riga cliente sotto il titolo
+    const codeY     = 510;
+    const barcodeY  = 200;
+    const xMargin   = 60;    // margine sinistro lungo l'asse lungo
 
     const lines = [
       "^XA",
@@ -893,14 +894,22 @@
       "^LH0,0",
       // Titolo prodotto: cella 55×55, max 2 righe
       `^FO${titleY},${xMargin}^A0R,55,55^FB${usableLen},2,6,L,0^FD${escZpl(name)}^FS`,
-      // Codice prodotto in parentesi: 45×45
+    ];
+    if (customer) {
+      // Cliente: cella 32×32, max 2 righe
+      lines.push(
+        `^FO${customerY},${xMargin}^A0R,32,32^FB${usableLen},2,4,L,0^FD${escZpl(customer)}^FS`
+      );
+    }
+    lines.push(
+      // Codice prodotto in parentesi
       `^FO${codeY},${xMargin}^A0R,45,45^FB${usableLen},1,4,L,0^FD[${escZpl(code)}]^FS`,
       // Barcode Code 128 ruotato R, altezza 280 dots (~1.4")
       `^FO${barcodeY},${xMargin}^BY${moduleW},3,0`,
       "^BCR,280,Y,N,N",
       `^FD${escZpl(lotStr)}^FS`,
-      "^XZ",
-    ];
+      "^XZ"
+    );
     return lines.join("\n");
   }
 
@@ -912,6 +921,7 @@
     const code = m ? m[1].trim() : "";
     const name = (m ? m[2] : raw).trim();
     const lot = (data.lot_name || "").trim();
+    const customer = (data.partner_name || "").trim();
     if (!lot) {
       ocpsToast("No Lot/SN to print", "error");
       return;
@@ -920,7 +930,7 @@
       ocpsToast("No product info to print", "error");
       return;
     }
-    const zpl = buildProductLabelZpl({ name, code, lot });
+    const zpl = buildProductLabelZpl({ name, code, lot, customer });
     try {
       chrome.runtime.sendMessage({ type: "ocps-print-zpl", zpl }, (resp) => {
         if (chrome.runtime.lastError) {
