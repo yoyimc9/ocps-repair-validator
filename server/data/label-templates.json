@@ -6,12 +6,12 @@
     "show_parts": true,
     "max_parts_lines": 5,
     "elements": {
-      "title":    { "enabled": true, "x": 60,  "y": 700, "w": 1100, "font": 55, "lines": 2 },
-      "customer": { "enabled": true, "x": 60,  "y": 600, "w": 1100, "font": 32, "lines": 2 },
-      "received": { "enabled": true, "x": 60,  "y": 540, "w": 1100, "font": 28, "lines": 1 },
-      "code":     { "enabled": true, "x": 60,  "y": 480, "w": 1100, "font": 40, "lines": 1 },
-      "parts":    { "enabled": true, "x": 60,  "y": 360, "w": 1100, "font": 26, "lines": 5 },
-      "barcode":  { "enabled": true, "x": 60,  "y": 180, "w": 1100, "h": 220 }
+      "title":    { "enabled": true, "x": 720, "y": 60, "w": 1300, "font": 55, "lines": 2 },
+      "customer": { "enabled": true, "x": 620, "y": 60, "w": 1300, "font": 32, "lines": 2 },
+      "received": { "enabled": true, "x": 540, "y": 60, "w": 1300, "font": 28, "lines": 1 },
+      "code":     { "enabled": true, "x": 470, "y": 60, "w": 1300, "font": 38, "lines": 1 },
+      "parts":    { "enabled": true, "x": 400, "y": 60, "w": 1300, "font": 26, "lines": 5 },
+      "barcode":  { "enabled": true, "x": 60,  "y": 60, "w": 1300, "h": 180 }
     }
   }
 }

@@ -897,8 +897,11 @@
       const w = e.w || 1100;
       const maxLines = (opts && opts.lines) || e.lines || 1;
       const gap = Math.max(2, Math.round(font * 0.1));
+      // Coordinate ZPL: ^FO X,Y dove X = posizione lungo lato corto (0..812,
+      // dove valori alti = bordo "alto" in landscape) e Y = posizione lungo
+      // lato lungo (0..1421, dove 0 = bordo sinistro in landscape).
       lines.push(
-        `^FO${e.x || 60},${e.y || 0}^A0R,${font},${font}^FB${w},${maxLines},${gap},L,0^FD${escZpl(s)}^FS`
+        `^FO${e.x || 600},${e.y || 60}^A0R,${font},${font}^FB${w},${maxLines},${gap},L,0^FD${escZpl(s)}^FS`
       );
     }
 
@@ -914,15 +917,17 @@
       const maxLines = e.lines || t.max_parts_lines || 5;
       const list = parts.slice(0, maxLines);
       const overflow = parts.length - list.length;
-      const body = list.map(p => "\\&" + p).join("");
-      // \& è il separatore di riga interno a ^FB di ZPL
-      const text = body.replace(/^\\&/, "") +
-                   (overflow > 0 ? `\\&+${overflow} more…` : "");
+      // ZPL usa "\&" come separatore di riga interno a ^FB. NON deve passare
+      // per escZpl (che strippa il backslash); escape solo i contenuti delle
+      // singole parti, poi join con il separatore literal.
+      const safeList = list.map(escZpl);
+      if (overflow > 0) safeList.push(`+${overflow} more...`);
+      const text = safeList.join("\\&");
       const font = e.font || 26;
       const w = e.w || 1100;
       const gap = Math.max(2, Math.round(font * 0.15));
       lines.push(
-        `^FO${e.x || 60},${e.y || 0}^A0R,${font},${font}^FB${w},${maxLines + (overflow > 0 ? 1 : 0)},${gap},L,0^FD${escZpl(text)}^FS`
+        `^FO${e.x || 200},${e.y || 60}^A0R,${font},${font}^FB${w},${maxLines + (overflow > 0 ? 1 : 0)},${gap},L,0^FD${text}^FS`
       );
     }
 
@@ -933,7 +938,7 @@
       const h = bc.h || 220;
       const moduleW = Math.max(2, Math.min(5, Math.floor(w / (lotStr.length * 11 + 35))));
       lines.push(
-        `^FO${bc.x || 60},${bc.y || 0}^BY${moduleW},3,0`,
+        `^FO${bc.x || 200},${bc.y || 60}^BY${moduleW},3,0`,
         `^BCR,${h},Y,N,N`,
         `^FD${escZpl(lotStr)}^FS`
       );
