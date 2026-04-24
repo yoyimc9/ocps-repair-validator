@@ -868,29 +868,36 @@
 
   function buildProductLabelZpl({ name, code, lot }) {
     // 4×7 in @ 203 dpi → printer width 812 × feed 1421 dots.
-    // Layout: landscape (long edge = readable axis). Tutti i campi ruotati 90° (R)
-    // con origine ancorata al bordo destro fisico così risultano in alto-sinistra
-    // quando si guarda il foglio orizzontalmente.
+    // Layout landscape (long edge = readable axis). Tutti i campi ruotati 90° (R)
+    // con origine ancorata verso il bordo destro fisico (alto in landscape).
+    // Dimensioni ridotte e margini ampi per stare dentro l'area di stampa effettiva.
     const lotStr = String(lot || "");
-    // Modulo barcode: scala in base alla lunghezza (Code 128 ≈ 11 moduli/char + 35 start/stop).
-    // Lo spazio disponibile lungo il lato lungo è ~1340 dots.
+    const usableLen = 1100; // dots disponibili lungo l'asse lungo (margini di sicurezza)
+    // Modulo barcode: scala in base alla lunghezza (Code 128 ≈ 11 moduli/char + 35 start/stop)
     const moduleW = lotStr.length > 0
-      ? Math.max(2, Math.min(8, Math.floor(1340 / (lotStr.length * 11 + 35))))
-      : 4;
+      ? Math.max(2, Math.min(5, Math.floor(usableLen / (lotStr.length * 11 + 35))))
+      : 3;
+
+    // Y coordinates (lato corto, fisico): 0 = bordo destro stampante, 812 = sinistro.
+    // In landscape: bordo destro fisico ≈ alto del foglio.
+    const titleY   = 660;   // 812 - 660 = 152 dots (~0.75") dal bordo alto landscape
+    const codeY    = 530;
+    const barcodeY = 200;
+    const xMargin  = 60;    // margine sinistro lungo l'asse lungo
+
     const lines = [
       "^XA",
-      "^CI28",          // UTF-8
+      "^CI28",
       "^PW812",
       "^LL1421",
       "^LH0,0",
-      // Titolo (nome prodotto): cella 90×90, max 3 righe, larghezza FB 1340 lungo l'asse rotato.
-      // FO x = 812 - 90 - 10 = 712 → bordo destro fisico (= alto landscape).
-      `^FO712,40^A0R,90,90^FB1340,3,8,L,0^FD${escZpl(name)}^FS`,
-      // Codice prodotto: cella 70×70 sotto il titolo (in landscape). 712 - 90 - 30 = 592.
-      `^FO592,40^A0R,70,70^FB1340,2,6,L,0^FD[${escZpl(code)}]^FS`,
-      // Barcode Code 128 ruotato R, altezza 380 dots. 592 - 70 - 30 - 380 = 112.
-      `^FO112,40^BY${moduleW},3,0`,
-      "^BCR,380,Y,N,N",
+      // Titolo prodotto: cella 55×55, max 2 righe
+      `^FO${titleY},${xMargin}^A0R,55,55^FB${usableLen},2,6,L,0^FD${escZpl(name)}^FS`,
+      // Codice prodotto in parentesi: 45×45
+      `^FO${codeY},${xMargin}^A0R,45,45^FB${usableLen},1,4,L,0^FD[${escZpl(code)}]^FS`,
+      // Barcode Code 128 ruotato R, altezza 280 dots (~1.4")
+      `^FO${barcodeY},${xMargin}^BY${moduleW},3,0`,
+      "^BCR,280,Y,N,N",
       `^FD${escZpl(lotStr)}^FS`,
       "^XZ",
     ];
