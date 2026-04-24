@@ -22,6 +22,24 @@ let lastEventSeq = 0;
 let eventLoopStarted = false;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message && message.type === "ocps-print-zpl") {
+    (async () => {
+      try {
+        const url = message.url || "http://10.56.67.23/pstprnt";
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: message.zpl || ""
+        });
+        const text = await resp.text().catch(() => "");
+        sendResponse({ ok: resp.ok, status: resp.status, body: text.slice(0, 500) });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err && err.message ? err.message : err) });
+      }
+    })();
+    return true;
+  }
+
   if (!message || message.type !== "ocps-api-fetch" || !message.url) return;
 
   (async () => {

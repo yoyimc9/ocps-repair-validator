@@ -194,6 +194,27 @@
 }
 .ocps-btn-icon:hover { opacity: 1; }
 
+/* -- Toast notification --------------------------------------------------- */
+.ocps-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2147483647;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #fff;
+  background: #16a34a;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+  max-width: 360px;
+}
+.ocps-toast.ocps-toast-err { background: #dc2626; }
+.ocps-toast.ocps-toast-show { opacity: 1; transform: translateY(0); }
+
 /* -- Corpo dettagli (nascosto quando compresso) ------------------------------ */
 .ocps-body {
   margin-top: 8px;

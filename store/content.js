@@ -388,6 +388,7 @@
         <span class="ocps-status-badge">${statusIcon} ${statusText}</span>
         <span class="ocps-summary-meta">${esc(data.name || "")} &nbsp;|&nbsp; ${esc(data.state || "")} &nbsp;|&nbsp; ${esc(data.lot_name || "—")} &nbsp;|&nbsp; ${esc(data.device_location || "—")}${deliveredBadge}</span>
         <div class="ocps-summary-actions">
+          <button class="ocps-btn-icon ocps-print" title="Print product label">🏷️</button>
           <button class="ocps-btn-icon ocps-note" title="Generate repair note">📝</button>
           <button class="ocps-btn-icon ocps-refresh" title="Re-validate">🔄</button>
           <button class="ocps-btn-icon ocps-toggle" title="Toggle details">${panel.classList.contains("ocps-collapsed") ? "▸" : "▾"}</button>
@@ -419,6 +420,10 @@
     panel.querySelector(".ocps-note").onclick = (e) => {
       e.stopPropagation();
       if (lastValidationData) showNoteModal(lastValidationData);
+    };
+    panel.querySelector(".ocps-print").onclick = (e) => {
+      e.stopPropagation();
+      if (lastValidationData) printProductLabel(lastValidationData);
     };
     panel.querySelector(".ocps-refresh").onclick = (e) => {
       e.stopPropagation();
@@ -840,6 +845,86 @@
       `<p><strong>Pictures:</strong></p>`,
       `<p><br></p>`,
     ].filter(Boolean).join("\n");
+  }
+
+  /* ── Stampa etichetta Zebra (4×7" @ 203 dpi) ───────────────── */
+
+  function ocpsToast(msg, kind) {
+    const t = document.createElement("div");
+    t.className = "ocps-toast " + (kind === "error" ? "ocps-toast-err" : "ocps-toast-ok");
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.classList.add("ocps-toast-show"); }, 10);
+    setTimeout(() => {
+      t.classList.remove("ocps-toast-show");
+      setTimeout(() => t.remove(), 300);
+    }, kind === "error" ? 4000 : 2200);
+  }
+
+  function escZpl(s) {
+    // Sostituisce i caratteri di controllo ZPL (^ ~ \) con uno spazio.
+    return String(s == null ? "" : s).replace(/[\^~\\]/g, " ");
+  }
+
+  function buildProductLabelZpl({ name, code, lot }) {
+    // 4×7 in @ 203 dpi → 812 × 1421 dots
+    const lotStr = String(lot || "");
+    // Modulo barcode: scala in base alla lunghezza del lot (Code 128 ≈ 11 moduli/char + 35 start/stop)
+    const moduleW = lotStr.length > 0
+      ? Math.max(2, Math.min(8, Math.floor(720 / (lotStr.length * 11 + 35))))
+      : 4;
+    const lines = [
+      "^XA",
+      "^CI28",          // UTF-8
+      "^PW812",
+      "^LL1421",
+      "^LH0,0",
+      // Titolo (nome prodotto), ~7-line max wrap a 100pt
+      `^FO40,80^A0N,100,100^FB732,4,10,L,0^FD${escZpl(name)}^FS`,
+      // Codice prodotto in parentesi
+      `^FO40,520^A0N,70,70^FB732,2,8,L,0^FD[${escZpl(code)}]^FS`,
+      // Barcode Code 128 con testo human-readable sotto
+      `^FO40,720^BY${moduleW},3,0`,
+      "^BCN,500,Y,N,N",
+      `^FD${escZpl(lotStr)}^FS`,
+      "^XZ",
+    ];
+    return lines.join("\n");
+  }
+
+  function printProductLabel(data) {
+    if (!data) return;
+    const raw = data.product_name || "";
+    // Odoo display name: "[CODE] Description"
+    const m = raw.match(/^\[([^\]]+)\]\s*(.*)$/);
+    const code = m ? m[1].trim() : "";
+    const name = (m ? m[2] : raw).trim();
+    const lot = (data.lot_name || "").trim();
+    if (!lot) {
+      ocpsToast("No Lot/SN to print", "error");
+      return;
+    }
+    if (!name && !code) {
+      ocpsToast("No product info to print", "error");
+      return;
+    }
+    const zpl = buildProductLabelZpl({ name, code, lot });
+    try {
+      chrome.runtime.sendMessage({ type: "ocps-print-zpl", zpl }, (resp) => {
+        if (chrome.runtime.lastError) {
+          ocpsToast("Print failed: " + chrome.runtime.lastError.message, "error");
+          return;
+        }
+        if (resp && resp.ok) {
+          ocpsToast("Label sent to printer", "ok");
+        } else {
+          const detail = resp ? (resp.error || ("HTTP " + resp.status)) : "no response";
+          ocpsToast("Print failed: " + detail, "error");
+        }
+      });
+    } catch (e) {
+      ocpsToast("Print failed: " + (e && e.message ? e.message : e), "error");
+    }
   }
 
   async function showNoteModal(data) {
