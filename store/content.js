@@ -867,11 +867,15 @@
   }
 
   function buildProductLabelZpl({ name, code, lot }) {
-    // 4×7 in @ 203 dpi → 812 × 1421 dots
+    // 4×7 in @ 203 dpi → printer width 812 × feed 1421 dots.
+    // Layout: landscape (long edge = readable axis). Tutti i campi ruotati 90° (R)
+    // con origine ancorata al bordo destro fisico così risultano in alto-sinistra
+    // quando si guarda il foglio orizzontalmente.
     const lotStr = String(lot || "");
-    // Modulo barcode: scala in base alla lunghezza del lot (Code 128 ≈ 11 moduli/char + 35 start/stop)
+    // Modulo barcode: scala in base alla lunghezza (Code 128 ≈ 11 moduli/char + 35 start/stop).
+    // Lo spazio disponibile lungo il lato lungo è ~1340 dots.
     const moduleW = lotStr.length > 0
-      ? Math.max(2, Math.min(8, Math.floor(720 / (lotStr.length * 11 + 35))))
+      ? Math.max(2, Math.min(8, Math.floor(1340 / (lotStr.length * 11 + 35))))
       : 4;
     const lines = [
       "^XA",
@@ -879,13 +883,14 @@
       "^PW812",
       "^LL1421",
       "^LH0,0",
-      // Titolo (nome prodotto), ~7-line max wrap a 100pt
-      `^FO40,80^A0N,100,100^FB732,4,10,L,0^FD${escZpl(name)}^FS`,
-      // Codice prodotto in parentesi
-      `^FO40,520^A0N,70,70^FB732,2,8,L,0^FD[${escZpl(code)}]^FS`,
-      // Barcode Code 128 con testo human-readable sotto
-      `^FO40,720^BY${moduleW},3,0`,
-      "^BCN,500,Y,N,N",
+      // Titolo (nome prodotto): cella 90×90, max 3 righe, larghezza FB 1340 lungo l'asse rotato.
+      // FO x = 812 - 90 - 10 = 712 → bordo destro fisico (= alto landscape).
+      `^FO712,40^A0R,90,90^FB1340,3,8,L,0^FD${escZpl(name)}^FS`,
+      // Codice prodotto: cella 70×70 sotto il titolo (in landscape). 712 - 90 - 30 = 592.
+      `^FO592,40^A0R,70,70^FB1340,2,6,L,0^FD[${escZpl(code)}]^FS`,
+      // Barcode Code 128 ruotato R, altezza 380 dots. 592 - 70 - 30 - 380 = 112.
+      `^FO112,40^BY${moduleW},3,0`,
+      "^BCR,380,Y,N,N",
       `^FD${escZpl(lotStr)}^FS`,
       "^XZ",
     ];
