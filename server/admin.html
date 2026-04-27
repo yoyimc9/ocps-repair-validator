@@ -577,6 +577,8 @@
                 <label>Show Recv date</label><input type="checkbox" id="lp-show-received" onchange="updateLabelFlag('show_received', this.checked)">
                 <label>Show parts</label><input type="checkbox" id="lp-show-parts" onchange="updateLabelFlag('show_parts', this.checked)">
                 <label>Max parts lines</label><input type="number" id="lp-max-parts" min="1" max="10" onchange="updateLabelFlag('max_parts_lines', +this.value)">
+                <label>Width (dots)</label><input type="number" id="lp-w-dots" min="100" max="2000" onchange="updateLabelFlag('width_dots', +this.value)">
+                <label>Length (dots)</label><input type="number" id="lp-l-dots" min="100" max="4000" onchange="updateLabelFlag('length_dots', +this.value)">
                 <label>Outer frame</label><input type="checkbox" id="lp-frame-enabled" onchange="updateNestedFlag('frame','enabled', this.checked)">
                 <label>Frame padding</label><input type="number" id="lp-frame-pad" min="0" max="100" onchange="updateNestedFlag('frame','padding', +this.value)">
                 <label>Frame thickness</label><input type="number" id="lp-frame-thick" min="1" max="10" onchange="updateNestedFlag('frame','thickness', +this.value)">
@@ -1117,7 +1119,7 @@
   // E inverso quando l'utente trascina.
   const LABEL_DEFAULTS = {
     product_label: {
-      width_dots: 812, length_dots: 1421,
+      width_dots: 812, length_dots: 1624,
       show_received: true, show_parts: true, max_parts_lines: 5,
       frame:    { enabled: true, padding: 30, thickness: 3 },
       dividers: { enabled: true, thickness: 2, positions: [] },
@@ -1173,6 +1175,8 @@
   }
 
   function pl() { return labelTpl && labelTpl.product_label; }
+  function _PW() { return (pl() && pl().width_dots)  || 812;  } // lato corto (^PW)
+  function _LL() { return (pl() && pl().length_dots) || 1624; } // lato lungo (^LL)
 
   function elemPx(el, key) {
     // Altezza visiva approssimativa in dots ZPL: barcode usa h, testo usa font * lines.
@@ -1180,12 +1184,13 @@
       ? (el.h || 220)
       : ((el.font || 28) * Math.max(1, el.lines || 1) * 1.15);
     const wDots = el.w || 1100;
-    const left = (el.y / 1421) * CANVAS_W;
-    const top  = ((812 - el.x - hDots) / 812) * CANVAS_H;
+    const PW = _PW(), LL = _LL();
+    const left = (el.y / LL) * CANVAS_W;
+    const top  = ((PW - el.x - hDots) / PW) * CANVAS_H;
     return {
       left, top,
-      width:  Math.max(20, (wDots / 1421) * CANVAS_W),
-      height: Math.max(14, (hDots / 812)  * CANVAS_H),
+      width:  Math.max(20, (wDots / LL) * CANVAS_W),
+      height: Math.max(14, (hDots / PW) * CANVAS_H),
     };
   }
 
@@ -1193,10 +1198,11 @@
     const hDots = key === "barcode"
       ? (el.h || 220)
       : ((el.font || 28) * Math.max(1, el.lines || 1) * 1.15);
-    let y = (left / CANVAS_W) * 1421;
-    let x = 812 - (top / CANVAS_H) * 812 - hDots;
-    y = Math.max(0, Math.min(1421, Math.round(y)));
-    x = Math.max(0, Math.min(812,  Math.round(x)));
+    const PW = _PW(), LL = _LL();
+    let y = (left / CANVAS_W) * LL;
+    let x = PW - (top / CANVAS_H) * PW - hDots;
+    y = Math.max(0, Math.min(LL, Math.round(y)));
+    x = Math.max(0, Math.min(PW, Math.round(x)));
     return { x, y };
   }
 
@@ -1210,10 +1216,11 @@
     const els = p.elements;
 
     // Frame esterno (overlay sopra il canvas)
+    const PW = _PW(), LL = _LL();
     const frame = p.frame || {};
     if (frame.enabled !== false) {
-      const padPx = ((frame.padding || 30) / 812) * CANVAS_H;
-      const padPxX = ((frame.padding || 30) / 1421) * CANVAS_W;
+      const padPx  = ((frame.padding || 30) / PW) * CANVAS_H;
+      const padPxX = ((frame.padding || 30) / LL) * CANVAS_W;
       const fr = document.createElement("div");
       fr.style.cssText = `
         position:absolute; left:${padPxX}px; top:${padPx}px;
@@ -1230,11 +1237,11 @@
       const pad = (frame.padding || 30);
       const positions = (Array.isArray(dv.positions) && dv.positions.length)
         ? dv.positions
-        : computeAutoDividersClient(els, pad, 812);
+        : computeAutoDividersClient(els, pad, PW);
       for (const x of positions) {
         // x ZPL = posizione lungo lato corto → nel canvas è top in landscape
-        const top = ((812 - x) / 812) * CANVAS_H;
-        const padPxX = ((frame.padding || 30) / 1421) * CANVAS_W;
+        const top = ((PW - x) / PW) * CANVAS_H;
+        const padPxX = ((frame.padding || 30) / LL) * CANVAS_W;
         const ln = document.createElement("div");
         ln.style.cssText = `
           position:absolute; left:${padPxX}px; right:${padPxX}px;
@@ -1294,6 +1301,10 @@
     if (cb1) cb1.checked = p.show_received !== false;
     if (cb2) cb2.checked = p.show_parts !== false;
     if (mp)  mp.value    = p.max_parts_lines || 5;
+    const wd = document.getElementById("lp-w-dots");
+    const ld = document.getElementById("lp-l-dots");
+    if (wd) wd.value = p.width_dots  || 812;
+    if (ld) ld.value = p.length_dots || 1624;
     // frame & dividers bindings
     const fe = document.getElementById("lp-frame-enabled");
     const fp = document.getElementById("lp-frame-pad");
@@ -1365,14 +1376,21 @@
   }
 
   function computeAutoDividersClient(els, pad, W) {
+    // Allineato a content.js: midpoint tra bottom dell'elemento sopra e top di quello sotto.
     const order = ["title","customer","received","code","parts","barcode"];
-    const xs = order
+    const items = order
       .filter(k => els[k] && els[k].enabled !== false && typeof els[k].x === "number")
-      .map(k => els[k].x)
-      .sort((a, b) => b - a);
+      .map(k => {
+        const e = els[k];
+        const span = k === "barcode"
+          ? (e.h || 0)
+          : ((e.font || 30) * (e.lines || 1));
+        return { k, top: e.x, bottom: e.x - span };
+      })
+      .sort((a, b) => b.top - a.top);
     const out = [];
-    for (let i = 0; i < xs.length - 1; i++) {
-      const mid = Math.round((xs[i] + xs[i + 1]) / 2);
+    for (let i = 0; i < items.length - 1; i++) {
+      const mid = Math.round((items[i].bottom + items[i + 1].top) / 2);
       if (mid > pad + 5 && mid < W - pad - 5) out.push(mid);
     }
     return out;

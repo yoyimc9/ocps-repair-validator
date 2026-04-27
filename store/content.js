@@ -884,14 +884,25 @@
    * adiacenti ordinati per X discendente.
    */
   function computeAutoDividers(els, pad, W) {
+    // Ogni elemento testo ha un anchor X e un font; il testo (^A0R) si estende
+    // verso X decrescente per font*lines dots. Il divisore va a metà strada
+    // tra il bordo "basso" dell'elemento sopra e l'anchor di quello sotto.
     const order = ["title","customer","received","code","parts","barcode"];
-    const xs = order
+    const items = order
       .filter(k => els[k] && els[k].enabled !== false && typeof els[k].x === "number")
-      .map(k => els[k].x)
-      .sort((a, b) => b - a); // descending: dall'alto del landscape verso il basso
+      .map(k => {
+        const e = els[k];
+        const span = k === "barcode"
+          ? (e.h || 0)
+          : ((e.font || 30) * (e.lines || 1));
+        return { k, top: e.x, bottom: e.x - span };
+      })
+      .sort((a, b) => b.top - a.top); // dall'alto del landscape verso il basso
     const out = [];
-    for (let i = 0; i < xs.length - 1; i++) {
-      const mid = Math.round((xs[i] + xs[i + 1]) / 2);
+    for (let i = 0; i < items.length - 1; i++) {
+      const upper = items[i];
+      const lower = items[i + 1];
+      const mid = Math.round((upper.bottom + lower.top) / 2);
       if (mid > pad + 5 && mid < W - pad - 5) out.push(mid);
     }
     return out;

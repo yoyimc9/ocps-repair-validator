@@ -47,7 +47,7 @@ const Config = (() => {
     labelTemplates: {
       product_label: {
         width_dots: 812,
-        length_dots: 1421,
+        length_dots: 1624,
         show_received: true,
         show_parts: true,
         max_parts_lines: 5,
