@@ -548,7 +548,7 @@
         <div id="label-editor" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
           <!-- Canvas: rappresenta l'etichetta in landscape (1421 dots × 812 dots) scalata. -->
           <div style="flex:0 0 auto;">
-            <div style="font-size:11px;color:#64748b;margin-bottom:4px;">Anteprima (scala 1:2.5 — landscape, lato lungo orizzontale)</div>
+            <div style="font-size:11px;color:#64748b;margin-bottom:4px;">Anteprima (landscape — lato lungo orizzontale)</div>
             <div id="label-canvas" style="position:relative;width:568px;height:325px;background:#fff;border:2px solid #cbd5e1;border-radius:6px;overflow:hidden;user-select:none;"></div>
             <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
               ← lato lungo (1421 dots = 7") →
@@ -1124,12 +1124,12 @@
       frame:    { enabled: true, padding: 30, thickness: 3 },
       dividers: { enabled: true, thickness: 2, positions: [] },
       elements: {
-        title:    { enabled: true, x: 720, y: 60, w: 1300, font: 55, lines: 2 },
-        customer: { enabled: true, x: 620, y: 60, w: 1300, font: 32, lines: 2 },
-        received: { enabled: true, x: 540, y: 60, w: 1300, font: 28, lines: 1 },
-        code:     { enabled: true, x: 470, y: 60, w: 1300, font: 38, lines: 1 },
-        parts:    { enabled: true, x: 400, y: 60, w: 1300, font: 26, lines: 5 },
-        barcode:  { enabled: true, x: 60,  y: 60, w: 1300, h: 180 },
+        title:    { enabled: true, x: 770, y: 60, w: 1500, font: 55, lines: 2 },
+        customer: { enabled: true, x: 620, y: 60, w: 1500, font: 32, lines: 2 },
+        received: { enabled: true, x: 530, y: 60, w: 1500, font: 28, lines: 1 },
+        code:     { enabled: true, x: 460, y: 60, w: 1500, font: 38, lines: 1 },
+        parts:    { enabled: true, x: 380, y: 60, w: 1500, font: 26, lines: 5 },
+        barcode:  { enabled: true, x: 60,  y: 60, w: 1500, h: 180 },
       },
     },
   };
@@ -1305,6 +1305,13 @@
     const ld = document.getElementById("lp-l-dots");
     if (wd) wd.value = p.width_dots  || 812;
     if (ld) ld.value = p.length_dots || 1624;
+    // dynamic caption with current paper size
+    const cap = document.getElementById("label-canvas-caption");
+    if (cap) {
+      const inL = (p.length_dots / 203).toFixed(1);
+      const inW = (p.width_dots  / 203).toFixed(1);
+      cap.innerHTML = `← lato lungo (${p.length_dots} dots = ${inL}") → &nbsp;|&nbsp; lato corto (${p.width_dots} dots = ${inW}") ↕`;
+    }
     // frame & dividers bindings
     const fe = document.getElementById("lp-frame-enabled");
     const fp = document.getElementById("lp-frame-pad");
