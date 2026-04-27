@@ -910,22 +910,23 @@
     const lines = ["^XA", "^CI28", `^PW${W}`, `^LL${L}`, "^LH0,0"];
 
     // ── Frame esterno + divisori orizzontali (stile tag UDT) ──────────────
-    // ZPL ^GB w,h,t disegna il box partendo da ^FO X,Y verso (X+h, Y+w):
-    // - "h" cresce lungo l'asse X (lato corto, verticale in landscape view)
-    // - "w" cresce lungo l'asse Y (lato lungo, orizzontale in landscape view)
+    // ZPL ^GB w,h,t parte da ^FO X,Y verso (X+w, Y+h):
+    // - "w" si estende lungo l'asse X (lato corto, max ^PW = W)
+    // - "h" si estende lungo l'asse Y (lato lungo, max ^LL = L)
+    // In landscape view, una linea "orizzontale" (sopra/sotto i campi
+    // ruotati ^A0R) ha X fisso, Y che corre per tutta la lunghezza →
+    // box con w=thick, h=L-2*pad.
     const frame = t.frame || {};
     if (frame.enabled !== false) {
       const pad   = frame.padding   != null ? frame.padding   : 30;
       const thick = frame.thickness != null ? frame.thickness : 3;
       lines.push(
-        `^FO${pad},${pad}^GB${L - 2 * pad},${W - 2 * pad},${thick}^FS`
+        `^FO${pad},${pad}^GB${W - 2 * pad},${L - 2 * pad},${thick}^FS`
       );
     }
 
     const dividers = t.dividers || {};
     if (dividers.enabled !== false) {
-      // Posizioni X (lato corto) dove disegnare una linea orizzontale.
-      // Default: tra customer/received, code/parts, parts/barcode.
       const pad   = (frame.padding   != null ? frame.padding   : 30);
       const thick = dividers.thickness != null ? dividers.thickness : 2;
       const positions = Array.isArray(dividers.positions) && dividers.positions.length
@@ -934,7 +935,7 @@
       for (const x of positions) {
         if (x <= pad || x >= W - pad) continue;
         lines.push(
-          `^FO${x},${pad}^GB${L - 2 * pad},${thick},${thick}^FS`
+          `^FO${x},${pad}^GB${thick},${L - 2 * pad},${thick}^FS`
         );
       }
     }
