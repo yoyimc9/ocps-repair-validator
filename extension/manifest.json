@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OCPS Repair Validator",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "update_url": "https://yoyimc9.github.io/ocps-repair-validator/updates.xml",
   "description": "Standalone real-time repair validation on Odoo repair pages. Please for any Feddback reachout to Geordany directly since this is currently under development.",
   "permissions": ["storage", "activeTab", "scripting", "alarms", "tabs", "notifications", "clipboardWrite"],

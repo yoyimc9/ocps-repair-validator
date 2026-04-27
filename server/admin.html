@@ -577,6 +577,11 @@
                 <label>Show Recv date</label><input type="checkbox" id="lp-show-received" onchange="updateLabelFlag('show_received', this.checked)">
                 <label>Show parts</label><input type="checkbox" id="lp-show-parts" onchange="updateLabelFlag('show_parts', this.checked)">
                 <label>Max parts lines</label><input type="number" id="lp-max-parts" min="1" max="10" onchange="updateLabelFlag('max_parts_lines', +this.value)">
+                <label>Outer frame</label><input type="checkbox" id="lp-frame-enabled" onchange="updateNestedFlag('frame','enabled', this.checked)">
+                <label>Frame padding</label><input type="number" id="lp-frame-pad" min="0" max="100" onchange="updateNestedFlag('frame','padding', +this.value)">
+                <label>Frame thickness</label><input type="number" id="lp-frame-thick" min="1" max="10" onchange="updateNestedFlag('frame','thickness', +this.value)">
+                <label>Row dividers</label><input type="checkbox" id="lp-div-enabled" onchange="updateNestedFlag('dividers','enabled', this.checked)">
+                <label>Divider thickness</label><input type="number" id="lp-div-thick" min="1" max="10" onchange="updateNestedFlag('dividers','thickness', +this.value)">
               </div>
             </div>
           </div>
@@ -1114,6 +1119,8 @@
     product_label: {
       width_dots: 812, length_dots: 1421,
       show_received: true, show_parts: true, max_parts_lines: 5,
+      frame:    { enabled: true, padding: 30, thickness: 3 },
+      dividers: { enabled: true, thickness: 2, positions: [] },
       elements: {
         title:    { enabled: true, x: 720, y: 60, w: 1300, font: 55, lines: 2 },
         customer: { enabled: true, x: 620, y: 60, w: 1300, font: 32, lines: 2 },
@@ -1146,6 +1153,11 @@
       const o = out.product_label;
       for (const k of ["width_dots","length_dots","show_received","show_parts","max_parts_lines"]) {
         if (u[k] !== undefined) o[k] = u[k];
+      }
+      for (const sub of ["frame","dividers"]) {
+        if (u[sub] && typeof u[sub] === "object") {
+          o[sub] = Object.assign({}, o[sub], u[sub]);
+        }
       }
       if (u.elements && typeof u.elements === "object") {
         for (const ek of Object.keys(o.elements)) {
@@ -1194,7 +1206,45 @@
     if (!canvas || !pl()) return;
     canvas.innerHTML = "";
     list.innerHTML = "";
-    const els = pl().elements;
+    const p = pl();
+    const els = p.elements;
+
+    // Frame esterno (overlay sopra il canvas)
+    const frame = p.frame || {};
+    if (frame.enabled !== false) {
+      const padPx = ((frame.padding || 30) / 812) * CANVAS_H;
+      const padPxX = ((frame.padding || 30) / 1421) * CANVAS_W;
+      const fr = document.createElement("div");
+      fr.style.cssText = `
+        position:absolute; left:${padPxX}px; top:${padPx}px;
+        right:${padPxX}px; bottom:${padPx}px;
+        border:${Math.max(1, Math.round((frame.thickness || 3) / 2))}px solid #0f172a;
+        border-radius:2px; pointer-events:none;
+      `;
+      canvas.appendChild(fr);
+    }
+
+    // Divisori orizzontali (in landscape view, da computeAutoDividersClient)
+    const dv = p.dividers || {};
+    if (dv.enabled !== false) {
+      const pad = (frame.padding || 30);
+      const positions = (Array.isArray(dv.positions) && dv.positions.length)
+        ? dv.positions
+        : computeAutoDividersClient(els, pad, 812);
+      for (const x of positions) {
+        // x ZPL = posizione lungo lato corto → nel canvas è top in landscape
+        const top = ((812 - x) / 812) * CANVAS_H;
+        const padPxX = ((frame.padding || 30) / 1421) * CANVAS_W;
+        const ln = document.createElement("div");
+        ln.style.cssText = `
+          position:absolute; left:${padPxX}px; right:${padPxX}px;
+          top:${top}px; height:${Math.max(1, dv.thickness || 2)}px;
+          background:#0f172a; pointer-events:none;
+        `;
+        canvas.appendChild(ln);
+      }
+    }
+
     const order = ["barcode","parts","code","received","customer","title"]; // z-order
     for (const key of order) {
       const el = els[key];
@@ -1238,13 +1288,23 @@
     }
     canvas.onclick = () => selectElem(null);
     // checkbox/flag bindings
-    const p = pl();
     const cb1 = document.getElementById("lp-show-received");
     const cb2 = document.getElementById("lp-show-parts");
     const mp  = document.getElementById("lp-max-parts");
     if (cb1) cb1.checked = p.show_received !== false;
     if (cb2) cb2.checked = p.show_parts !== false;
     if (mp)  mp.value    = p.max_parts_lines || 5;
+    // frame & dividers bindings
+    const fe = document.getElementById("lp-frame-enabled");
+    const fp = document.getElementById("lp-frame-pad");
+    const ft = document.getElementById("lp-frame-thick");
+    const de = document.getElementById("lp-div-enabled");
+    const dt = document.getElementById("lp-div-thick");
+    if (fe) fe.checked = (p.frame || {}).enabled !== false;
+    if (fp) fp.value   = (p.frame || {}).padding   != null ? p.frame.padding   : 30;
+    if (ft) ft.value   = (p.frame || {}).thickness != null ? p.frame.thickness : 3;
+    if (de) de.checked = (p.dividers || {}).enabled !== false;
+    if (dt) dt.value   = (p.dividers || {}).thickness != null ? p.dividers.thickness : 2;
     // sync raw JSON textarea (advanced)
     const ta = document.getElementById("cfg-label-templates");
     if (ta) ta.value = JSON.stringify(labelTpl, null, 2);
@@ -1296,6 +1356,26 @@
   function updateLabelFlag(flag, value) {
     pl()[flag] = value;
     renderLabelEditor();
+  }
+
+  function updateNestedFlag(group, key, value) {
+    if (!pl()[group]) pl()[group] = {};
+    pl()[group][key] = value;
+    renderLabelEditor();
+  }
+
+  function computeAutoDividersClient(els, pad, W) {
+    const order = ["title","customer","received","code","parts","barcode"];
+    const xs = order
+      .filter(k => els[k] && els[k].enabled !== false && typeof els[k].x === "number")
+      .map(k => els[k].x)
+      .sort((a, b) => b - a);
+    const out = [];
+    for (let i = 0; i < xs.length - 1; i++) {
+      const mid = Math.round((xs[i] + xs[i + 1]) / 2);
+      if (mid > pad + 5 && mid < W - pad - 5) out.push(mid);
+    }
+    return out;
   }
 
   function startDrag(ev) {

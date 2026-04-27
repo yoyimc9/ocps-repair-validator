@@ -5,6 +5,8 @@
     "show_received": true,
     "show_parts": true,
     "max_parts_lines": 5,
+    "frame":     { "enabled": true, "padding": 30, "thickness": 3 },
+    "dividers":  { "enabled": true, "thickness": 2, "positions": [] },
     "elements": {
       "title":    { "enabled": true, "x": 720, "y": 60, "w": 1300, "font": 55, "lines": 2 },
       "customer": { "enabled": true, "x": 620, "y": 60, "w": 1300, "font": 32, "lines": 2 },

@@ -878,6 +878,25 @@
     return String(s == null ? "" : s).replace(/[\^~\\]/g, " ");
   }
 
+  /**
+   * Calcola posizioni X (lato corto) per le linee divisorie orizzontali tra
+   * gli elementi testo. Un divisore va a metà strada tra due elementi
+   * adiacenti ordinati per X discendente.
+   */
+  function computeAutoDividers(els, pad, W) {
+    const order = ["title","customer","received","code","parts","barcode"];
+    const xs = order
+      .filter(k => els[k] && els[k].enabled !== false && typeof els[k].x === "number")
+      .map(k => els[k].x)
+      .sort((a, b) => b - a); // descending: dall'alto del landscape verso il basso
+    const out = [];
+    for (let i = 0; i < xs.length - 1; i++) {
+      const mid = Math.round((xs[i] + xs[i + 1]) / 2);
+      if (mid > pad + 5 && mid < W - pad - 5) out.push(mid);
+    }
+    return out;
+  }
+
   function buildProductLabelZpl({ name, code, lot, customer, received, parts, tpl }) {
     // Layout landscape su Zebra ZT230 (4×7" @ 203dpi → 812×1421 dots).
     // Tutti i campi sono ruotati 90° (^A0R / ^BCR) per leggibilità landscape.
@@ -885,8 +904,40 @@
     // server-driven; ogni elemento ha {x, y, w, font, lines, enabled}.
     const t = tpl || {};
     const els = t.elements || {};
+    const W = t.width_dots  || 812;
+    const L = t.length_dots || 1421;
     const lotStr = String(lot || "");
-    const lines = ["^XA", "^CI28", `^PW${t.width_dots || 812}`, `^LL${t.length_dots || 1421}`, "^LH0,0"];
+    const lines = ["^XA", "^CI28", `^PW${W}`, `^LL${L}`, "^LH0,0"];
+
+    // ── Frame esterno + divisori orizzontali (stile tag UDT) ──────────────
+    // ZPL ^GB w,h,t disegna il box partendo da ^FO X,Y verso (X+h, Y+w):
+    // - "h" cresce lungo l'asse X (lato corto, verticale in landscape view)
+    // - "w" cresce lungo l'asse Y (lato lungo, orizzontale in landscape view)
+    const frame = t.frame || {};
+    if (frame.enabled !== false) {
+      const pad   = frame.padding   != null ? frame.padding   : 30;
+      const thick = frame.thickness != null ? frame.thickness : 3;
+      lines.push(
+        `^FO${pad},${pad}^GB${L - 2 * pad},${W - 2 * pad},${thick}^FS`
+      );
+    }
+
+    const dividers = t.dividers || {};
+    if (dividers.enabled !== false) {
+      // Posizioni X (lato corto) dove disegnare una linea orizzontale.
+      // Default: tra customer/received, code/parts, parts/barcode.
+      const pad   = (frame.padding   != null ? frame.padding   : 30);
+      const thick = dividers.thickness != null ? dividers.thickness : 2;
+      const positions = Array.isArray(dividers.positions) && dividers.positions.length
+        ? dividers.positions
+        : computeAutoDividers(els, pad, W);
+      for (const x of positions) {
+        if (x <= pad || x >= W - pad) continue;
+        lines.push(
+          `^FO${x},${pad}^GB${L - 2 * pad},${thick},${thick}^FS`
+        );
+      }
+    }
 
     function txt(key, value, opts) {
       const e = els[key];
