@@ -541,18 +541,17 @@
       <div class="card">
         <h3>🧾 Label Templates</h3>
         <p style="font-size:12px;color:#64748b;margin:0 0 8px;">
-          Layout dell'etichetta del pulsante 🏷️ (Zebra ZT230, 4×7" landscape).
+          Layout dell'etichetta del pulsante 🏷️ <span id="label-paper-info">(Zebra ZT230 landscape)</span>.
           Trascina i blocchi per riposizionarli; usa le caselle a destra per font, larghezza, righe e abilitazione.
         </p>
 
         <div id="label-editor" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
-          <!-- Canvas: rappresenta l'etichetta in landscape (1421 dots × 812 dots) scalata. -->
+          <!-- Canvas: rappresenta l'etichetta in landscape, scalata da paper size. -->
           <div style="flex:0 0 auto;">
             <div style="font-size:11px;color:#64748b;margin-bottom:4px;">Anteprima (landscape — lato lungo orizzontale)</div>
-            <div id="label-canvas" style="position:relative;width:568px;height:325px;background:#fff;border:2px solid #cbd5e1;border-radius:6px;overflow:hidden;user-select:none;"></div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
-              ← lato lungo (1421 dots = 7") →
-              &nbsp;|&nbsp; lato corto (812 dots = 4") ↕
+            <div id="label-canvas" style="position:relative;width:568px;height:284px;background:#fff;border:2px solid #cbd5e1;border-radius:6px;overflow:hidden;user-select:none;"></div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:4px;" id="label-canvas-caption">
+              ← lato lungo → &nbsp;|&nbsp; lato corto ↕
             </div>
           </div>
 
@@ -1141,7 +1140,8 @@
     parts:    { color: "#065f46", bg: "#d1fae5", sample: "Battery (3-cell)\nLCD assembly\nKeyboard" },
     barcode:  { color: "#0f172a", bg: "#cbd5e1", sample: "▮▮ ▮▮▮ ▮ ▮▮ (Code 128)" },
   };
-  const CANVAS_W = 568, CANVAS_H = 325;
+  const CANVAS_W = 568;
+  let CANVAS_H = 284; // ricalcolato dinamicamente da paper aspect
   let labelTpl = null;          // { product_label: {...} }
   let selectedElem = null;      // chiave in labelTpl.product_label.elements
   let dragState = null;
@@ -1215,8 +1215,10 @@
     const p = pl();
     const els = p.elements;
 
-    // Frame esterno (overlay sopra il canvas)
+    // Adatta altezza canvas all'aspect ratio reale del foglio (lato lungo / lato corto).
     const PW = _PW(), LL = _LL();
+    CANVAS_H = Math.round(CANVAS_W * (PW / LL));
+    canvas.style.height = CANVAS_H + "px";
     const frame = p.frame || {};
     if (frame.enabled !== false) {
       const padPx  = ((frame.padding || 30) / PW) * CANVAS_H;
@@ -1306,12 +1308,14 @@
     if (wd) wd.value = p.width_dots  || 812;
     if (ld) ld.value = p.length_dots || 1624;
     // dynamic caption with current paper size
+    const inL = (LL / 203).toFixed(1);
+    const inW = (PW / 203).toFixed(1);
     const cap = document.getElementById("label-canvas-caption");
     if (cap) {
-      const inL = (p.length_dots / 203).toFixed(1);
-      const inW = (p.width_dots  / 203).toFixed(1);
-      cap.innerHTML = `← lato lungo (${p.length_dots} dots = ${inL}") → &nbsp;|&nbsp; lato corto (${p.width_dots} dots = ${inW}") ↕`;
+      cap.innerHTML = `← lato lungo (${LL} dots = ${inL}") → &nbsp;|&nbsp; lato corto (${PW} dots = ${inW}") ↕`;
     }
+    const info = document.getElementById("label-paper-info");
+    if (info) info.textContent = `(Zebra ZT230, ${inW}×${inL}" landscape)`;
     // frame & dividers bindings
     const fe = document.getElementById("lp-frame-enabled");
     const fp = document.getElementById("lp-frame-pad");
